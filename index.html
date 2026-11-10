@@ -1,0 +1,3222 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saltos por Telde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Karla:wght@400;600&display=swap">
+<style>
+  /* Diseño: columna centrada; el juego como una pantalla enmarcada en basalto,
+     con la paleta del casco de San Juan (cal, cantería, almagre y madera de tea). */
+  :root {
+    --basalto: #1b191c;   /* fondo de la página */
+    --piedra: #34302f;    /* marcos y superficies */
+    --cal: #f1ebe0;       /* texto principal */
+    --gris: #a8a097;      /* texto secundario */
+    --almagre: #c4552f;   /* acento */
+    --oro: #f2c43d;       /* monedas */
+    --violeta: #8a5cc2;   /* la bruja */
+    --marea: #3fa7b5;     /* el tritón */
+    --toba: #c98a4f;      /* el guardián de Cuatro Puertas */
+    --brasa: #d8452f;     /* el tibicena */
+    --perenquen: #2f8f8a; /* el súper */
+    --f-pixel: "Pixelify Sans", "Courier New", monospace;
+    --f-texto: "Karla", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+
+  [hidden] { display: none !important; }  /* los paneles ocultos no deben tapar nada */
+
+  body {
+    margin: 0;
+    background: var(--basalto);
+    color: var(--cal);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 32px;
+  }
+
+  .pagina { max-width: 960px; margin: 0 auto; display: grid; gap: 14px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--f-pixel); font-weight: 700; font-size: clamp(26px, 5vw, 40px); line-height: 1; margin: 0; letter-spacing: .02em; text-wrap: balance; }
+  h1 span { color: var(--almagre); }
+  .cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .lugar { font-family: var(--f-pixel); color: var(--gris); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+
+  /* Marco del juego: mantiene la proporción del lienzo (320 × 176) */
+  .marco {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 320 / 176;
+    max-width: 100%;
+    background: var(--piedra);
+    border: 3px solid var(--piedra);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; image-rendering: crisp-edges; }
+  /* En pantallas estrechas, el marco crece mientras hay un menú abierto para que quepa */
+  @media (max-width: 640px) { .marco.con-panel { aspect-ratio: auto; height: min(560px, 82vh); } }
+
+  /* Marcador */
+  .hud {
+    position: absolute; inset: 0 0 auto 0;
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 6px 10px;
+    font-family: var(--f-pixel); font-size: clamp(11px, 2.2vw, 18px);
+    color: var(--cal); text-shadow: 1px 1px 0 var(--basalto), -1px 1px 0 var(--basalto);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .hud b { color: var(--oro); font-weight: 700; }
+  .hud .corazones { color: var(--almagre); letter-spacing: .1em; }
+
+  /* Barra de vida del jefe (el color cambia según el jefe) y avisos grandes */
+  .jefe {
+    --color-jefe: var(--violeta);
+    position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    font-family: var(--f-pixel); font-size: clamp(11px, 2.2vw, 16px);
+    background: color-mix(in srgb, var(--basalto) 82%, transparent);
+    border: 2px solid var(--color-jefe); padding: 3px 10px;
+    pointer-events: none;
+  }
+  .jefe[data-jefe="triton"] { --color-jefe: var(--marea); }
+  .jefe[data-jefe="guardian"] { --color-jefe: var(--toba); }
+  .jefe[data-jefe="tibicena"] { --color-jefe: var(--brasa); }
+  .jefe .vida { display: flex; gap: 3px; }
+  .jefe .vida i { display: block; width: clamp(10px, 2vw, 16px); height: 8px; background: var(--color-jefe); }
+  .jefe .vida i.vacia { background: var(--piedra); }
+  .aviso {
+    position: absolute; inset: 22% 0 auto 0; text-align: center;
+    font-family: var(--f-pixel); font-weight: 700; font-size: clamp(16px, 4.2vw, 34px);
+    color: var(--oro); text-shadow: 2px 2px 0 var(--basalto);
+    pointer-events: none; padding-inline: 12px;
+  }
+
+  /* Pantallas de inicio, entre partes y final */
+  .panel {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    background: color-mix(in srgb, var(--basalto) 72%, transparent);
+    padding: 12px;
+  }
+  .tarjeta {
+    background: var(--basalto);
+    border: 2px solid var(--almagre);
+    padding: clamp(12px, 3vw, 24px);
+    max-width: 480px;
+    display: grid; gap: 10px;
+    max-height: 100%; overflow: auto;
+  }
+  .tarjeta h2 { font-family: var(--f-pixel); font-weight: 700; font-size: clamp(18px, 3.6vw, 28px); line-height: 1.1; margin: 0; text-wrap: balance; }
+  .tarjeta p { margin: 0; font-size: clamp(12px, 2vw, 15px); color: var(--gris); max-width: 60ch; }
+  .tarjeta p strong { color: var(--cal); font-weight: 600; }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--f-pixel); font-size: clamp(13px, 2.4vw, 18px); font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--oro); }
+
+  button {
+    font-family: var(--f-pixel); font-weight: 700; font-size: 16px;
+    background: var(--almagre); color: var(--cal);
+    border: 0; border-bottom: 3px solid color-mix(in srgb, var(--almagre) 60%, black);
+    padding: 8px 16px; cursor: pointer; justify-self: start;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:focus-visible { outline: 2px solid var(--oro); outline-offset: 3px; }
+  button.secundario { background: var(--piedra); border-bottom-color: var(--basalto); }
+  button.mini { font-size: 13px; padding: 4px 10px; border-bottom-width: 2px; }
+  .botones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* Menú principal: tarjeta centrada sobre la portada animada del lienzo */
+  .panel.portada { background: transparent; }
+  .menu {
+    background: color-mix(in srgb, var(--basalto) 90%, transparent);
+    border: 2px solid var(--almagre);
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--basalto) 60%, transparent);
+    padding: clamp(10px, 2.4vw, 20px);
+    width: min(100%, 340px);
+    display: grid; gap: clamp(6px, 1.3vw, 10px);
+    max-height: 100%; overflow: auto;
+  }
+  .logo { display: grid; gap: 4px; text-align: center; }
+  .logo b { font-family: var(--f-pixel); font-weight: 700; font-size: clamp(22px, 4.6vw, 38px); line-height: 1; }
+  .logo b em { font-style: normal; color: var(--almagre); }
+  .logo span { font-family: var(--f-pixel); font-size: clamp(10px, 1.6vw, 13px); color: var(--gris); letter-spacing: .08em; text-transform: uppercase; }
+  .menu > button { justify-self: stretch; text-align: center; }
+  .ajuste { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; font-family: var(--f-pixel); font-size: clamp(12px, 1.9vw, 15px); color: var(--gris); }
+  .segmento { display: flex; }
+  .segmento button { font-size: clamp(12px, 1.9vw, 14px); padding: 4px 10px; background: var(--piedra); color: var(--gris); border-bottom: 2px solid var(--basalto); }
+  .segmento button.activo { background: var(--almagre); color: var(--cal); border-bottom-color: color-mix(in srgb, var(--almagre) 60%, black); }
+  .nota { margin: -4px 0 0; font-size: 12px; color: var(--gris); text-align: right; }
+  .menu-pie { margin: 0; text-align: center; font-family: var(--f-pixel); font-size: 12px; color: var(--oro); animation: parpadeo 1.2s steps(2) infinite; }
+  @keyframes parpadeo { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .menu-pie { animation: none; } }
+  .lista-ayuda { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--gris); font-size: clamp(12px, 2vw, 14px); }
+
+  /* Súper El Perenquén: la escena del súper se ve a la izquierda y la lista de la compra a la derecha */
+  .panel.tienda { background: transparent; justify-items: end; }
+  @media (max-width: 640px) { .panel.tienda { justify-items: center; align-items: end; } }
+  .tienda .tarjeta { border-color: var(--perenquen); max-width: 330px; }
+  .productos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .productos li { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--piedra); padding-top: 8px; }
+  .productos li > div { display: grid; gap: 2px; min-width: 0; }
+  .productos b { font-family: var(--f-pixel); font-weight: 700; color: var(--cal); font-size: clamp(13px, 2.2vw, 16px); }
+  .productos span { font-size: 12px; color: var(--gris); line-height: 1.3; }
+  .productos button { font-size: 13px; padding: 5px 10px; white-space: nowrap; background: var(--perenquen); border-bottom-color: color-mix(in srgb, var(--perenquen) 60%, black); }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+
+  .ayuda { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--gris); font-size: 14px; margin: 0; }
+  kbd { font-family: var(--f-pixel); color: var(--cal); background: var(--piedra); padding: 0 6px; border-radius: 3px; }
+
+  /* Controles táctiles: solo en pantallas táctiles */
+  .tactil { display: none; justify-content: space-between; gap: 12px; user-select: none; -webkit-user-select: none; touch-action: none; }
+  .tactil div { display: flex; gap: 12px; }
+  .tactil button { font-size: 22px; padding: 14px 22px; min-width: 64px; }
+  .tactil button.activo { filter: brightness(1.25); }
+  @media (pointer: coarse) { .tactil { display: flex; } }
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header>
+    <h1>Saltos por <span>Telde</span></h1>
+    <div class="cabecera">
+      <div class="lugar" id="lugar">Un viaje por Telde · Gran Canaria</div>
+      <button class="secundario mini" id="btnPausa" data-t="pausa" hidden>Pausa</button>
+      <button class="secundario mini" id="btnSonido" aria-pressed="true">Sonido: sí</button>
+    </div>
+  </header>
+
+  <div class="marco" id="marco">
+    <canvas id="lienzo" width="320" height="176" data-t-aria="lienzo" aria-label="Juego de plataformas por Telde: casco de San Juan, playa de La Garita y Cuatro Puertas"></canvas>
+
+    <div class="hud" id="hud" hidden>
+      <span><span data-t="monedas">Monedas</span> <b id="hudMonedas">0/0</b></span>
+      <span id="hudVida" hidden><span data-t="vida">Vida</span> <b class="corazones" id="hudCorazones">♥♥♥♥</b></span>
+      <span id="hudObjetos" hidden></span>
+      <span id="hudTiempo">0:00.0</span>
+      <span><span data-t="caidas">Caídas</span> <b id="hudCaidas">0</b></span>
+    </div>
+
+    <div class="jefe" id="barraJefe" hidden>
+      <span id="nombreJefe">La Bruja del Barranco</span>
+      <span class="vida" id="vidaJefe"></span>
+    </div>
+    <div class="aviso" id="aviso" hidden></div>
+
+    <!-- Menú principal, sobre la portada animada que se dibuja en el lienzo -->
+    <div class="panel portada" id="panelMenu">
+      <div class="menu">
+        <div class="logo">
+          <b>Saltos por <em>Telde</em></b>
+          <span data-t="lema">Un viaje por Telde · Gran Canaria</span>
+        </div>
+        <button id="btnNueva" data-t="nueva">Nueva partida</button>
+        <button class="secundario" id="btnContinuar" hidden>Continuar</button>
+        <div class="ajuste">
+          <span data-t="dificultad">Dificultad</span>
+          <div class="segmento">
+            <button data-dif="facil" data-t="facil">Fácil</button>
+            <button data-dif="dificil" data-t="dificil">Difícil</button>
+          </div>
+        </div>
+        <p class="nota" id="notaDificultad"></p>
+        <div class="ajuste">
+          <span data-t="idioma">Idioma</span>
+          <div class="segmento">
+            <button data-idioma="es" lang="es">Español</button>
+            <button data-idioma="en" lang="en">English</button>
+          </div>
+        </div>
+        <div class="ajuste">
+          <span data-t="sonido">Sonido</span>
+          <div class="segmento">
+            <button data-sonido="si" data-t="si">Sí</button>
+            <button data-sonido="no" data-t="no">No</button>
+          </div>
+        </div>
+        <button class="secundario" id="btnComoJugar" data-t="comoJugar">Cómo jugar</button>
+        <p class="menu-pie" data-t="pulsaIntro">Pulsa Intro para empezar</p>
+      </div>
+    </div>
+
+    <!-- Cómo jugar -->
+    <div class="panel" id="panelComo" hidden>
+      <div class="tarjeta">
+        <h2 data-t="comoJugar">Cómo jugar</h2>
+        <p data-t="como.objetivo"></p>
+        <ul class="lista-ayuda">
+          <li data-t="ayuda.mover"></li>
+          <li data-t="ayuda.saltar"></li>
+          <li data-t="ayuda.bajar"></li>
+          <li data-t="ayuda.lanzar"></li>
+          <li data-t="ayuda.teclas"></li>
+          <li data-t="ayuda.mecanicas"></li>
+        </ul>
+        <button id="btnVolverMenu" data-t="volver">Volver</button>
+      </div>
+    </div>
+
+    <!-- Pausa -->
+    <div class="panel" id="panelPausa" hidden>
+      <div class="tarjeta">
+        <h2 data-t="pausa">Pausa</h2>
+        <div class="botones">
+          <button id="btnReanudar" data-t="seguirJugando">Seguir jugando</button>
+          <button class="secundario" id="btnMenuPausa" data-t="menuPrincipal">Menú principal</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Súper El Perenquén: compras antes del combate final -->
+    <div class="panel tienda" id="panelTienda" hidden>
+      <div class="tarjeta">
+        <h2 data-t="tienda.nombre">Súper El Perenquén</h2>
+        <p data-t="tienda.lema"></p>
+        <div class="stats"><span><span data-t="tienda.monedas">Tus monedas</span> <b id="tiendaMonedas">0</b></span></div>
+        <ul class="productos">
+          <li><div><b data-t="obj.gofio"></b><span data-t="obj.gofio.desc"></span></div><button data-comprar="gofio"></button></li>
+          <li><div><b data-t="obj.mojo"></b><span data-t="obj.mojo.desc"></span></div><button data-comprar="mojo"></button></li>
+          <li><div><b data-t="obj.platanos"></b><span data-t="obj.platanos.desc"></span></div><button data-comprar="platanos"></button></li>
+        </ul>
+        <button id="btnSalirTienda" data-t="tienda.salir">Ir al Barranco Real</button>
+      </div>
+    </div>
+
+    <!-- Entre una parte y la siguiente (el texto depende del nivel) -->
+    <div class="panel" id="panelIntermedio" hidden>
+      <div class="tarjeta">
+        <h2 id="intTitulo"></h2>
+        <div class="stats">
+          <span><span data-t="monedas">Monedas</span> <b id="intMonedas"></b></span>
+          <span><span data-t="tiempo">Tiempo</span> <b id="intTiempo"></b></span>
+          <span><span data-t="caidas">Caídas</span> <b id="intCaidas"></b></span>
+        </div>
+        <p id="intTexto"></p>
+        <p id="intSiguiente"></p>
+        <button id="btnSeguir">Seguir</button>
+      </div>
+    </div>
+
+    <!-- Final del juego -->
+    <div class="panel" id="panelFinal" hidden>
+      <div class="tarjeta">
+        <h2 id="finTitulo"></h2>
+        <div class="stats">
+          <span><span data-t="monedas">Monedas</span> <b id="finMonedas"></b></span>
+          <span><span data-t="tiempo">Tiempo</span> <b id="finTiempo"></b></span>
+          <span><span data-t="caidas">Caídas</span> <b id="finCaidas"></b></span>
+          <span><span data-t="dificultad">Dificultad</span> <b id="finDificultad"></b></span>
+        </div>
+        <p id="finTexto"></p>
+        <div class="botones">
+          <button id="btnOtraVez" data-t="jugarOtraVez">Jugar otra vez</button>
+          <button class="secundario" id="btnMenuFin" data-t="menuPrincipal">Menú principal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="ayuda">
+    <span data-t="ayuda.mover"></span>
+    <span data-t="ayuda.saltar"></span>
+    <span data-t="ayuda.bajar"></span>
+    <span data-t="ayuda.lanzar"></span>
+    <span data-t="ayuda.teclas"></span>
+    <span data-t="ayuda.mecanicas"></span>
+  </p>
+
+  <div class="tactil" id="tactil">
+    <div>
+      <button data-tecla="izq" aria-label="←">◀</button>
+      <button data-tecla="der" aria-label="→">▶</button>
+    </div>
+    <div>
+      <button class="secundario" data-tecla="pausa" data-t-aria="pausa" aria-label="Pausa">II</button>
+      <button data-tecla="abajo" aria-label="↓">▼</button>
+      <button class="secundario" data-tecla="lanzar" data-t="lanzar">Lanzar</button>
+      <button data-tecla="salto" data-t="saltar">Saltar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* =========================================================
+     1. CONFIGURACIÓN
+     ========================================================= */
+  const W = 320, H = 176;          // resolución interna (píxeles de juego)
+  const T = 16;                    // tamaño de cada casilla
+  const COLS = 132, ROWS = 11;     // tamaño de cada nivel en casillas
+  const SUELO_Y = 9 * T;           // altura de la superficie del suelo (144)
+  const ANCHO_NIVEL = COLS * T;
+
+  const FISICA = {
+    gravedad: 900,     // px/s²
+    caidaMax: 420,     // velocidad máxima de caída
+    velMax: 110,       // velocidad horizontal máxima
+    acelSuelo: 900,
+    acelAire: 620,
+    frenoSuelo: 1100,
+    salto: 310,        // velocidad inicial del salto
+    corteSalto: 120,   // al soltar el botón, la subida se corta a esta velocidad
+    coyote: 0.1,       // margen para saltar tras salir de un borde (s)
+    bufferSalto: 0.12  // margen para pulsar salto justo antes de aterrizar (s)
+  };
+
+  // Bufaderos (parte 2): chorros de agua que lanzan al jugador hacia arriba
+  const BUFADERO = {
+    impulso: 380,      // velocidad hacia arriba al tocar el chorro
+    altura: 72,        // altura del chorro sobre el suelo (px)
+    ancho: 28,         // anchura de la zona que lanza (px)
+    duracionChorro: 1, // segundos que dura el chorro
+    duracionAviso: .6  // segundos de burbujas antes del chorro
+  };
+
+  // Repisas agrietadas (parte 3): se derrumban al pisarlas y vuelven a aparecer
+  const REPISA = {
+    aguante: .5,       // segundos que aguantan con el jugador encima
+    regreso: 3         // segundos hasta que vuelven a aparecer
+  };
+
+  /* =========================================================
+     1b. DIFICULTAD
+     "Fácil" son los valores rebajados; "Difícil", los originales.
+     ========================================================= */
+  const DIFICULTADES = {
+    facil: {
+      clave: 'facil',
+      vidas: 4,            // corazones durante los combates
+      invuln: 1.5,         // segundos sin recibir daño tras un golpe
+      rabiaPorGolpe: .15,  // cuánto acelera el jefe tras cada golpe
+      cadenciaFuego: 1.6,  // segundos entre disparos
+      velFuego: 60,        // velocidad de los disparos
+      aviso: 1.0,          // segundos de aviso antes del picado
+      velPicado: 260,      // velocidad de la caída en picado
+      aturdida: 3.2,       // segundos que el jefe queda aturdido
+      velEspiritu: 32,     // velocidad máxima de los perseguidores
+      invocaConVida: 1     // invoca perseguidores cuando le queda esta vida o menos
+    },
+    dificil: {
+      clave: 'dificil',
+      vidas: 3, invuln: 1.2, rabiaPorGolpe: .3, cadenciaFuego: 1, velFuego: 75,
+      aviso: .7, velPicado: 320, aturdida: 2.2, velEspiritu: 42, invocaConVida: 2
+    }
+  };
+  const CLAVE_GUARDADO = 'saltos-telde-dificultad';
+  let dif = DIFICULTADES.facil;
+  try {
+    const guardada = localStorage.getItem(CLAVE_GUARDADO);
+    if (guardada && DIFICULTADES[guardada]) dif = DIFICULTADES[guardada];
+  } catch (e) { /* sin almacenamiento: se usa Fácil */ }
+
+  // Progreso: la parte más avanzada a la que se ha llegado (para "Continuar")
+  let progreso = 0;
+  try { progreso = Math.max(0, parseInt(localStorage.getItem('saltos-telde-progreso'), 10) || 0); } catch (e) { /* sin almacenamiento */ }
+
+  /* =========================================================
+     1d. TEXTOS E IDIOMA
+     Todos los textos visibles están aquí, en español e inglés.
+     En el HTML, data-t="clave" indica qué texto va en cada sitio.
+     ========================================================= */
+  const TEXTOS = {
+    es: {
+      'lienzo': 'Juego de plataformas por Telde: casco de San Juan, playa de La Garita, Cuatro Puertas y Barranco Real',
+      'lema': 'Un viaje por Telde · Gran Canaria',
+      'nueva': 'Nueva partida',
+      'continuar': 'Continuar · Parte {n}',
+      'dificultad': 'Dificultad',
+      'facil': 'Fácil',
+      'dificil': 'Difícil',
+      'desc.facil': '4 corazones y jefes más lentos',
+      'desc.dificil': '3 corazones, ataques rápidos y más enemigos',
+      'idioma': 'Idioma',
+      'sonido': 'Sonido',
+      'si': 'Sí',
+      'no': 'No',
+      'sonido.si': 'Sonido: sí',
+      'sonido.no': 'Sonido: no',
+      'comoJugar': 'Cómo jugar',
+      'pulsaIntro': 'Pulsa Intro para empezar',
+      'volver': 'Volver',
+      'pausa': 'Pausa',
+      'seguirJugando': 'Seguir jugando',
+      'menuPrincipal': 'Menú principal',
+      'jugarOtraVez': 'Jugar otra vez',
+      'monedas': 'Monedas',
+      'vida': 'Vida',
+      'caidas': 'Caídas',
+      'tiempo': 'Tiempo',
+      'otraVez': '¡Otra vez!',
+      'saltar': 'Saltar',
+      'como.objetivo': 'Recorre cuatro lugares de Telde, recoge monedas y supera a los guardianes de cada parte: esquiva sus ataques y sáltales encima cuando caigan aturdidos. Los faroles y las hogueras guardan tu avance. Antes del combate final, gasta tus monedas en el súper.',
+      'ayuda.mover': '<kbd>←</kbd> <kbd>→</kbd> o <kbd>A</kbd> <kbd>D</kbd> moverse',
+      'ayuda.saltar': '<kbd>Espacio</kbd> <kbd>↑</kbd> <kbd>W</kbd> saltar (mantén para saltar más alto)',
+      'ayuda.bajar': '<kbd>↓</kbd> bajar de un balcón, muelle o repisa',
+      'ayuda.teclas': '<kbd>M</kbd> sonido · <kbd>Esc</kbd> pausa',
+      'ayuda.mecanicas': 'En La Garita, salta al chorro de un bufadero para cruzar el mar. En Cuatro Puertas, las repisas agrietadas se derrumban si te paras en ellas.',
+      'n1.titulo': 'Parte 1 · Plaza de San Juan',
+      'n1.lugar': 'Plaza de San Juan · Gran Canaria',
+      'n1.fin.titulo': '¡Venciste a la bruja y llegaste a la basílica!',
+      'n1.fin.texto': 'Dentro guarda un <strong>retablo flamenco del siglo XVI</strong> y el <strong>Cristo de Telde</strong>, una imagen de pasta de caña de maíz hecha en México y traída a la isla.',
+      'n1.fin.siguiente': 'Pero el viaje sigue: baja hasta la costa, a la playa de La Garita.',
+      'n1.fin.boton': 'Seguir hacia La Garita',
+      'n2.titulo': 'Parte 2 · Playa de La Garita',
+      'n2.lugar': 'Playa de La Garita · Gran Canaria',
+      'n2.fin.titulo': '¡Venciste al Tritón del Bufadero!',
+      'n2.fin.texto': 'El <strong>Bufadero de La Garita</strong> son dos grandes cavidades en la roca volcánica que se llenan y se vacían con las olas. Cuando sube la marea, el agua sale a presión por una abertura, y su sonido rítmico se ha llamado «el latido del océano».',
+      'n2.fin.siguiente': 'Ahora toca subir tierra adentro, a la Montaña de Cuatro Puertas.',
+      'n2.fin.boton': 'Subir a Cuatro Puertas',
+      'n3.titulo': 'Parte 3 · Cuatro Puertas',
+      'n3.lugar': 'Montaña de Cuatro Puertas · Gran Canaria',
+      'n3.fin.titulo': '¡El Guardián de Cuatro Puertas te deja pasar!',
+      'n3.fin.texto': 'La <strong>cueva de Cuatro Puertas</strong>, cerca de la cima de la Montaña Bermeja, fue excavada a mano en la toba volcánica. Mide unos 17 por 7 metros y sus cuatro grandes puertas, orientadas al nordeste, dan a una sola sala. Se cree que fue un lugar sagrado de los antiguos canarios, junto a un almogarén donde se hacían ofrendas. Es Bien de Interés Cultural desde 1972.',
+      'jefe.bruja.nombre': 'La Bruja del Barranco',
+      'jefe.bruja.inicio': '¡La Bruja del Barranco!',
+      'jefe.bruja.fin': '¡La basílica está abierta!',
+      'jefe.triton.nombre': 'El Tritón del Bufadero',
+      'jefe.triton.inicio': '¡El Tritón del Bufadero!',
+      'jefe.triton.fin': '¡Vuelve al mar! Sube a la barca',
+      'jefe.guardian.nombre': 'El Guardián de Cuatro Puertas',
+      'jefe.guardian.inicio': '¡El Guardián de Cuatro Puertas!',
+      'jefe.guardian.fin': '¡El guardián te deja pasar!',
+      'n3.fin.siguiente': 'Antes del combate final, para en el súper a por provisiones.',
+      'n3.fin.boton': 'Ir al súper',
+      'n4.titulo': 'Parte 4 · Barranco Real de Telde',
+      'n4.lugar': 'Barranco Real de Telde · Gran Canaria',
+      'n4.fin.titulo': '¡Venciste al Tibicena y llegaste a Tara!',
+      'n4.fin.texto': 'En las laderas del barranco de Telde estaban los poblados aborígenes de <strong>Tara</strong> y <strong>Cendro</strong>, este último con cuevas artificiales comunicadas entre sí. De una cueva de Tara procede el <strong>Ídolo de Tara</strong>, una figura de cerámica relacionada con la fertilidad que hoy es símbolo de Telde. El <strong>tibicena</strong> es un ser de la mitología de los antiguos canarios de Gran Canaria: un gran perro de pelo negro y ojos rojos que vivía en cuevas profundas.',
+      'jefe.tibicena.nombre': 'El Tibicena',
+      'jefe.tibicena.inicio': '¡El Tibicena!',
+      'jefe.tibicena.fin': '¡El Tibicena vuelve a su cueva!',
+      'tienda.nombre': 'Súper El Perenquén',
+      'tienda.lema': 'Provisiones para el combate final. Gasta aquí las monedas que has recogido.',
+      'tienda.monedas': 'Tus monedas',
+      'tienda.comprar': 'Comprar · {p}',
+      'tienda.comprado': 'En la cesta',
+      'tienda.salir': 'Ir al Barranco Real',
+      'obj.gofio': 'Gofio',
+      'obj.gofio.desc': '+1 corazón en el combate final',
+      'obj.mojo': 'Papas con mojo',
+      'obj.mojo.desc': 'Te protege del primer golpe de cada intento',
+      'obj.platanos': 'Plátanos (×3)',
+      'obj.platanos.desc': 'Lánzalos con X para derribar al jefe',
+      'hud.platanos': 'Plátanos',
+      'hud.escudo': 'Mojo',
+      'ayuda.lanzar': '<kbd>X</kbd> lanzar un plátano (parte 4)',
+      'lanzar': 'Lanzar'
+    },
+    en: {
+      'lienzo': 'Platform game across Telde: San Juan old town, La Garita beach, Cuatro Puertas and Barranco Real',
+      'lema': 'A journey through Telde · Gran Canaria',
+      'nueva': 'New game',
+      'continuar': 'Continue · Part {n}',
+      'dificultad': 'Difficulty',
+      'facil': 'Easy',
+      'dificil': 'Hard',
+      'desc.facil': '4 hearts and slower bosses',
+      'desc.dificil': '3 hearts, faster attacks and more enemies',
+      'idioma': 'Language',
+      'sonido': 'Sound',
+      'si': 'On',
+      'no': 'Off',
+      'sonido.si': 'Sound: on',
+      'sonido.no': 'Sound: off',
+      'comoJugar': 'How to play',
+      'pulsaIntro': 'Press Enter to start',
+      'volver': 'Back',
+      'pausa': 'Paused',
+      'seguirJugando': 'Resume',
+      'menuPrincipal': 'Main menu',
+      'jugarOtraVez': 'Play again',
+      'monedas': 'Coins',
+      'vida': 'Life',
+      'caidas': 'Falls',
+      'tiempo': 'Time',
+      'otraVez': 'Try again!',
+      'saltar': 'Jump',
+      'como.objetivo': 'Travel through four places in Telde, collect coins and get past the guardian of each part: dodge their attacks and jump on them when they fall stunned. Street lamps and campfires save your progress. Before the final battle, spend your coins at the supermarket.',
+      'ayuda.mover': '<kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> move',
+      'ayuda.saltar': '<kbd>Space</kbd> <kbd>↑</kbd> <kbd>W</kbd> jump (hold to jump higher)',
+      'ayuda.bajar': '<kbd>↓</kbd> drop down from a balcony, pier or ledge',
+      'ayuda.teclas': '<kbd>M</kbd> sound · <kbd>Esc</kbd> pause',
+      'ayuda.mecanicas': 'At La Garita, jump into a blowhole’s spout to cross the sea. At Cuatro Puertas, cracked ledges crumble if you stand on them.',
+      'n1.titulo': 'Part 1 · Plaza de San Juan',
+      'n1.lugar': 'Plaza de San Juan · Gran Canaria',
+      'n1.fin.titulo': 'You beat the witch and reached the basilica!',
+      'n1.fin.texto': 'Inside it keeps a <strong>16th-century Flemish altarpiece</strong> and the <strong>Cristo de Telde</strong>, a figure made of corn-stalk paste in Mexico and brought to the island.',
+      'n1.fin.siguiente': 'But the journey goes on: head down to the coast, to La Garita beach.',
+      'n1.fin.boton': 'On to La Garita',
+      'n2.titulo': 'Part 2 · La Garita Beach',
+      'n2.lugar': 'La Garita Beach · Gran Canaria',
+      'n2.fin.titulo': 'You beat the Triton of the Bufadero!',
+      'n2.fin.texto': 'The <strong>Bufadero de La Garita</strong> is a pair of large cavities in the volcanic rock that fill and empty with the waves. When the tide rises, water bursts out through an opening, and its rhythmic sound has been called “the heartbeat of the ocean”.',
+      'n2.fin.siguiente': 'Now head inland, up to the Montaña de Cuatro Puertas.',
+      'n2.fin.boton': 'Climb to Cuatro Puertas',
+      'n3.titulo': 'Part 3 · Cuatro Puertas',
+      'n3.lugar': 'Montaña de Cuatro Puertas · Gran Canaria',
+      'n3.fin.titulo': 'The Guardian of Cuatro Puertas lets you through!',
+      'n3.fin.texto': 'The <strong>Cuatro Puertas cave</strong>, near the top of Montaña Bermeja, was dug by hand into volcanic tuff. It measures about 17 by 7 metres, and its four large doorways, facing north-east, open onto a single chamber. It is thought to have been a sacred place of the ancient Canarians, next to an almogarén where offerings were made. It has been a protected heritage site since 1972.',
+      'jefe.bruja.nombre': 'The Witch of the Ravine',
+      'jefe.bruja.inicio': 'The Witch of the Ravine!',
+      'jefe.bruja.fin': 'The basilica is open!',
+      'jefe.triton.nombre': 'The Triton of the Bufadero',
+      'jefe.triton.inicio': 'The Triton of the Bufadero!',
+      'jefe.triton.fin': 'Back to the sea! Board the boat',
+      'jefe.guardian.nombre': 'The Guardian of Cuatro Puertas',
+      'jefe.guardian.inicio': 'The Guardian of Cuatro Puertas!',
+      'jefe.guardian.fin': 'The guardian lets you through!',
+      'n3.fin.siguiente': 'Before the final battle, stop at the supermarket for supplies.',
+      'n3.fin.boton': 'Go to the supermarket',
+      'n4.titulo': 'Part 4 · Barranco Real de Telde',
+      'n4.lugar': 'Barranco Real de Telde · Gran Canaria',
+      'n4.fin.titulo': 'You beat the Tibicena and reached Tara!',
+      'n4.fin.texto': 'On the slopes of the Telde ravine stood the aboriginal villages of <strong>Tara</strong> and <strong>Cendro</strong>, the latter with man-made caves linked to one another. The <strong>Idol of Tara</strong>, a ceramic figure linked to fertility that is now a symbol of Telde, came from a cave in Tara. The <strong>tibicena</strong> is a creature from the mythology of the ancient Canarians of Gran Canaria: a huge black-haired dog with red eyes that lived in deep caves.',
+      'jefe.tibicena.nombre': 'The Tibicena',
+      'jefe.tibicena.inicio': 'The Tibicena!',
+      'jefe.tibicena.fin': 'The Tibicena returns to its cave!',
+      'tienda.nombre': 'Súper El Perenquén',
+      'tienda.lema': 'Supplies for the final battle. Spend the coins you have collected here.',
+      'tienda.monedas': 'Your coins',
+      'tienda.comprar': 'Buy · {p}',
+      'tienda.comprado': 'In the basket',
+      'tienda.salir': 'On to Barranco Real',
+      'obj.gofio': 'Gofio',
+      'obj.gofio.desc': '+1 heart in the final battle',
+      'obj.mojo': 'Papas with mojo',
+      'obj.mojo.desc': 'Blocks the first hit of each attempt',
+      'obj.platanos': 'Bananas (×3)',
+      'obj.platanos.desc': 'Throw them with X to knock the boss down',
+      'hud.platanos': 'Bananas',
+      'hud.escudo': 'Mojo',
+      'ayuda.lanzar': '<kbd>X</kbd> throw a banana (part 4)',
+      'lanzar': 'Throw'
+    }
+  };
+  const IDIOMAS = ['es', 'en'];
+  let idioma = 'es';
+  try { const guardado = localStorage.getItem('saltos-telde-idioma'); if (IDIOMAS.includes(guardado)) idioma = guardado; } catch (e) { /* sin almacenamiento */ }
+
+  // tr('clave', { n: 2 }) devuelve el texto en el idioma actual, con {n} sustituido
+  function tr(clave, datos) {
+    let texto = TEXTOS[idioma][clave] ?? TEXTOS.es[clave] ?? clave;
+    if (datos) for (const k in datos) texto = texto.replace(`{${k}}`, datos[k]);
+    return texto;
+  }
+
+  /* =========================================================
+     1c. SONIDO (música de 8 bits y efectos con Web Audio)
+     Todo se genera con osciladores: no hay archivos de audio.
+     Las canciones se escriben como notas separadas por espacios;
+     cada nota dura una corchea y "-" es un silencio.
+     ========================================================= */
+  const Sonido = (() => {
+    const SEMITONOS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    function frecuencia(nota) {
+      const m = /^([A-G])([#b]?)(\d)$/.exec(nota);
+      const midi = SEMITONOS[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (Number(m[3]) + 1) * 12;
+      return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+    const pista = texto => texto.trim().split(/\s+/).map(t => (t === '-' ? null : frecuencia(t)));
+
+    // Menú principal: una isa original (ritmo canario en 3/4) con rasgueo de timple.
+    // No es ninguna canción existente: melodía y acordes están compuestos para el juego.
+    const ACORDES_TIMPLE = { G: ['G4', 'B4', 'D5', 'G5'], C: ['G4', 'C5', 'E5', 'G5'], D: ['F#4', 'A4', 'D5', 'F#5'] };
+    const BAJO_ISA = { G: 'G2 - D3 - D3 -', C: 'C3 - G3 - G3 -', D: 'D3 - A2 - A2 -' };
+    const ARMONIA_ISA = 'G G D D D D G G C G D G C G D G'.split(' ');   // un acorde por compás
+
+    // bateria: k = bombo, s = caja, h = charles, - = nada
+    const CANCIONES = {
+      plaza: { // alegre, en Do mayor
+        bpm: 132,
+        melodia: pista('C5 E5 G5 E5 F5 A5 G5 -  E5 G5 C6 B5 A5 G5 F5 -  D5 F5 A5 F5 G5 B5 A5 -  G5 E5 D5 E5 C5 - - -'),
+        bajo:    pista('C3 - G3 - F3 - C3 -  C3 - E3 - F3 - G3 -  D3 - A3 - G3 - D3 -  C3 - G2 - C3 - - -'),
+        bateria: 'k-h-s-h-'
+      },
+      garita: { // tranquila, como la brisa del mar
+        bpm: 112,
+        melodia: pista('A4 - C5 - F5 - - E5  D5 - C5 - A4 - - -  Bb4 - D5 - G5 - - F5  E5 - D5 - C5 - - -'),
+        bajo:    pista('F2 - C3 - F2 - C3 -  F2 - C3 - F2 - C3 -  Bb2 - F3 - Bb2 - F3 -  C3 - G3 - C3 - - -'),
+        bateria: 'k---h---'
+      },
+      cuevas: { // misteriosa, en Re dórico, con un tambor grave
+        bpm: 100,
+        melodia: pista('D5 - - F5 E5 - D5 -  A4 - - C5 D5 - - -  F5 - - G5 A5 - G5 F5  E5 - - C5 D5 - - -'),
+        bajo:    pista('D3 - A2 - D3 - A2 -  C3 - G2 - C3 - G2 -  Bb2 - F2 - Bb2 - F2 -  A2 - E2 - A2 - - -'),
+        bateria: 'k--k-h--'
+      },
+      portada: { // isa en Sol mayor: 16 compases de 3/4 (6 corcheas cada uno)
+        bpm: 150,
+        compas: 6,
+        melodia: pista(
+          'B4 - D5 - G5 F#5  E5 D5 - B4 D5 -  C5 - A4 - F#4 A4  D5 - - - - -  ' +
+          'A4 B4 C5 - E5 D5  C5 B4 A4 - F#4 -  G4 B4 D5 - B4 G4  G4 - - - - -  ' +
+          'E5 - G5 - E5 C5  D5 - B4 - G4 B4  A4 - C5 - F#5 E5  D5 - B4 - - -  ' +
+          'C5 E5 G5 - E5 C5  B4 D5 G5 - D5 B4  A4 F#4 A4 C5 E5 F#5  G5 - - - - -'),
+        bajo: pista(ARMONIA_ISA.map(a => BAJO_ISA[a]).join(' ')),
+        armonia: ARMONIA_ISA.map(a => ACORDES_TIMPLE[a].map(frecuencia)),
+        rasgueo: 'X-xxx-',   // golpes de timple en cada compás: X fuerte, x suave
+        bateria: '------'
+      },
+      tienda: { // hilo musical del súper, en Do mayor
+        bpm: 110,
+        melodia: pista('E5 - G5 - C6 - - B5  A5 - G5 - E5 - - -  F5 - A5 - D6 - - C6  B5 - G5 - D5 - - -'),
+        bajo:    pista('C3 - G3 - C3 - G3 -  A2 - E3 - A2 - E3 -  D3 - A3 - D3 - A3 -  G2 - D3 - G2 - D3 -'),
+        bateria: 'k-h-sh-h'
+      },
+      barranco: { // última parte: épica, en Mi menor
+        bpm: 124,
+        melodia: pista('E5 - B4 - E5 F#5 G5 -  F#5 E5 D5 - B4 - - -  C5 - G4 - C5 D5 E5 -  D5 C5 B4 - A4 B4 - -'),
+        bajo:    pista('E2 - B2 - E2 - B2 -  D3 - A2 - D3 - A2 -  C3 - G2 - C3 - G2 -  B2 - F#2 - B2 - - -'),
+        bateria: 'k-hsk-s-'
+      },
+      jefe: { // combate: rápida, en La menor
+        bpm: 160,
+        melodia: pista('A4 C5 E5 A5 G5 E5 C5 E5  F4 A4 C5 F5 E5 C5 A4 C5  D4 F4 A4 D5 C5 A4 F4 A4  E4 G#4 B4 E5 D5 B4 G#4 B4'),
+        bajo:    pista('A2 - A2 - A2 - A2 -  F2 - F2 - F2 - F2 -  D2 - D2 - D2 - D2 -  E2 - E2 - E2 - E2 -'),
+        bateria: 'k-s-k-ss'
+      }
+    };
+
+    let ctx = null, salida = null, volMusica = null, bufRuido = null;
+    let cancion = null, pendiente = null, paso = 0, siguiente = 0;
+    let silencio = false;
+    try { silencio = localStorage.getItem('saltos-telde-silencio') === '1'; } catch (e) { /* sin almacenamiento */ }
+
+    // El navegador solo deja sonar audio después de que el jugador pulse algo
+    function iniciar() {
+      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      try { ctx = new AC(); } catch (e) { return; }
+      salida = ctx.createGain(); salida.gain.value = silencio ? 0 : .6; salida.connect(ctx.destination);
+      volMusica = ctx.createGain(); volMusica.gain.value = .45; volMusica.connect(salida);
+      bufRuido = ctx.createBuffer(1, ctx.sampleRate / 2, ctx.sampleRate);
+      const datos = bufRuido.getChannelData(0);
+      for (let i = 0; i < datos.length; i++) datos[i] = Math.random() * 2 - 1;
+      setInterval(programar, 25);
+      musica(pendiente);
+    }
+
+    // Una nota con caída rápida de volumen (sonido "chip")
+    function tono(f, t, dur, tipo, vol, destino, fFinal) {
+      const o = ctx.createOscillator(), v = ctx.createGain();
+      o.type = tipo;
+      o.frequency.setValueAtTime(f, t);
+      if (fFinal) o.frequency.exponentialRampToValueAtTime(fFinal, t + dur);
+      v.gain.setValueAtTime(vol, t);
+      v.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(v); v.connect(destino || salida);
+      o.start(t); o.stop(t + dur + .02);
+    }
+
+    // Ruido filtrado: percusión, agua, derrumbes
+    function ruido(t, dur, vol, tipoFiltro, f, fFinal, destino) {
+      const s = ctx.createBufferSource(), filtro = ctx.createBiquadFilter(), v = ctx.createGain();
+      s.buffer = bufRuido;
+      filtro.type = tipoFiltro;
+      filtro.frequency.setValueAtTime(f, t);
+      if (fFinal) filtro.frequency.exponentialRampToValueAtTime(fFinal, t + dur);
+      v.gain.setValueAtTime(vol, t);
+      v.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      s.connect(filtro); filtro.connect(v); v.connect(destino || salida);
+      s.start(t); s.stop(t + dur + .02);
+    }
+
+    function percusion(golpe, t) {
+      if (golpe === 'k') tono(150, t, .12, 'sine', .5, volMusica, 40);
+      else if (golpe === 's') ruido(t, .1, .22, 'highpass', 1500, null, volMusica);
+      else if (golpe === 'h') ruido(t, .03, .1, 'highpass', 6000, null, volMusica);
+    }
+
+    // Programa las notas un poco por delante del reloj de audio
+    function programar() {
+      if (!cancion) return;
+      const corchea = 60 / cancion.bpm / 2;
+      if (siguiente < ctx.currentTime - .1) siguiente = ctx.currentTime + .02; // tras volver a la pestaña
+      while (siguiente < ctx.currentTime + .15) {
+        const m = cancion.melodia[paso % cancion.melodia.length];
+        const b = cancion.bajo[paso % cancion.bajo.length];
+        if (m) tono(m, siguiente, corchea * .9, 'square', .09, volMusica);
+        if (b) tono(b, siguiente, corchea * .95, 'triangle', .22, volMusica);
+        percusion(cancion.bateria[paso % cancion.bateria.length], siguiente);
+        // Rasgueo de timple: las cuerdas del acorde suenan una tras otra, muy seguidas
+        if (cancion.armonia) {
+          const golpe = cancion.rasgueo[paso % cancion.rasgueo.length];
+          if (golpe !== '-') {
+            const acorde = cancion.armonia[Math.floor(paso / cancion.compas) % cancion.armonia.length];
+            const vol = golpe === 'X' ? .05 : .03;
+            acorde.forEach((f, i) => tono(f, siguiente + i * .012, corchea * .7, 'square', vol, volMusica));
+          }
+        }
+        siguiente += corchea; paso++;
+      }
+    }
+
+    function musica(nombre) {
+      pendiente = nombre;
+      if (!ctx) return;
+      const nueva = CANCIONES[nombre] || null;
+      if (nueva === cancion) return;
+      cancion = nueva; paso = 0; siguiente = ctx.currentTime + .06;
+    }
+
+    function efecto(nombre) {
+      if (!ctx || silencio) return;
+      const t = ctx.currentTime;
+      switch (nombre) {
+        case 'salto': tono(260, t, .14, 'square', .12, null, 560); break;
+        case 'moneda': tono(988, t, .07, 'square', .1); tono(1319, t + .07, .14, 'square', .1); break;
+        case 'control': [523, 659, 784, 1047].forEach((f, i) => tono(f, t + i * .06, .1, 'triangle', .18)); break;
+        case 'caida': tono(500, t, .35, 'square', .1, null, 90); break;
+        case 'agua': ruido(t, .4, .3, 'lowpass', 2000, 200); tono(300, t, .2, 'sine', .15, null, 80); break;
+        case 'golpe': tono(220, t, .25, 'sawtooth', .14, null, 55); ruido(t, .12, .2, 'lowpass', 1200); break;
+        case 'pisar': tono(180, t, .15, 'square', .16, null, 60); ruido(t, .08, .25, 'lowpass', 800); break;
+        case 'lanzar': tono(520, t, .08, 'triangle', .1, null, 260); break;
+        case 'bufadero': ruido(t, .6, .3, 'bandpass', 300, 2500); break;
+        case 'derrumbe': ruido(t, .3, .25, 'lowpass', 900, 150); break;
+        case 'jefe': [220, 207.65, 196, 185].forEach((f, i) => tono(f, t + i * .16, .2, 'square', .14)); break;
+        case 'victoria': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tono(f, t + i * .08, .18, 'square', .1)); break;
+        case 'caja': tono(1568, t, .06, 'square', .1); tono(2093, t + .06, .2, 'square', .1); ruido(t, .05, .1, 'highpass', 4000); break;
+        case 'meta':
+          [[523, 0], [659, .12], [784, .24], [1047, .36], [784, .54], [1047, .66]].forEach(([f, d]) => tono(f, t + d, .22, 'square', .11));
+          tono(262, t, .9, 'triangle', .2);
+          break;
+      }
+    }
+
+    function alternarSilencio() {
+      silencio = !silencio;
+      if (salida) salida.gain.value = silencio ? 0 : .6;
+      try { localStorage.setItem('saltos-telde-silencio', silencio ? '1' : '0'); } catch (e) { /* sin almacenamiento */ }
+      return silencio;
+    }
+
+    return { iniciar, musica, efecto, alternarSilencio, get silencio() { return silencio; } };
+  })();
+
+  const canvas = document.getElementById('lienzo');
+  const g = canvas.getContext('2d');
+  g.imageSmoothingEnabled = false;
+
+  /* =========================================================
+     2. NIVELES
+     Cada nivel es una rejilla: 0 vacío, 1 piedra (sólida),
+     2 plataforma (balcón, muelle o repisa: solo se pisa desde arriba),
+     3 repisa agrietada (como la plataforma, pero se derrumba).
+     crearNivel() da funciones pequeñas para construirlo y cada
+     nivel indica con qué funciones se dibuja, su música y su jefe.
+     ========================================================= */
+  // 4 = acequia: canal de agua que se pisa como una plataforma y arrastra al jugador
+  const VACIO = 0, SOLIDO = 1, PLATAFORMA = 2, FRAGIL = 3, ACEQUIA = 4;
+  const CORRIENTE = 45;   // px/s que empuja el agua de las acequias
+
+  function crearNivel(datos, construir) {
+    const n = {
+      ...datos,
+      mapa: Array.from({ length: ROWS }, () => new Uint8Array(COLS)),
+      monedas: [], plataformas: [], bufaderos: [], fragiles: new Map(), corrientes: new Map()
+    };
+    const h = {
+      bloque(c0, c1, f0, f1, tipo = SOLIDO) {
+        for (let c = c0; c <= c1; c++)
+          for (let f = f0; f <= f1; f++) n.mapa[f][c] = tipo;
+      },
+      suelo(c0, c1) { h.bloque(c0, c1, 9, 10); },
+      plataforma(c0, c1, f) { h.bloque(c0, c1, f, f, PLATAFORMA); n.plataformas.push({ c0, c1, f }); },
+      fragil(c0, c1, f) {
+        h.bloque(c0, c1, f, f, FRAGIL);
+        for (let c = c0; c <= c1; c++) n.fragiles.set(f * COLS + c, { c, f, estado: 'firme', t: 0 });
+      },
+      // Acequia: dir = 1 el agua corre hacia la derecha, -1 hacia la izquierda
+      acequia(c0, c1, f, dir) {
+        h.bloque(c0, c1, f, f, ACEQUIA);
+        for (let c = c0; c <= c1; c++) n.corrientes.set(f * COLS + c, dir);
+      },
+      monedas(c0, c1, f) {
+        for (let c = c0; c <= c1; c++) n.monedas.push({ x: c * T + 8, y: f * T + 8, cogida: false });
+      },
+      // Bufadero en un hueco de mar: c0 = primera casilla del hueco
+      bufadero(c0, ancho, periodo, desfase) { n.bufaderos.push({ cx: (c0 + ancho / 2) * T, periodo, desfase }); }
+    };
+    construir(h);
+    return n;
+  }
+
+  const BASILICA_X = 1800;   // parte 1: posición de la basílica
+  const BUFA_CX = 1866;      // parte 2: centro de la roca del Bufadero
+  const BARCA_X = 2040;      // parte 2: barca de la meta
+  const CUEVA_X = 2024;      // parte 3: fachada de la cueva de las Cuatro Puertas
+
+  const NIVELES = [
+    /* ---------- Parte 1: casco de San Juan ---------- */
+    crearNivel({
+      id: 'n1',                               // sus textos están en TEXTOS (n1.titulo, n1.lugar, n1.fin…)
+      musica: 'plaza',
+      jefe: 'bruja',
+      faroles: [2, 52, 74, 102],              // puntos de control (columnas)
+      puntoControl: 'farol',
+      arena: { x0: 1700, x1: 2020, activa: false },
+      meta: { x0: BASILICA_X + 78, x1: BASILICA_X + 99 },  // puerta de la basílica
+      aguaY: null,                            // sin mar: se cae al vacío
+      colorPolvo: '#d6c6a8',
+      casas: [
+        { c0: 24, c1: 37, techo: 2, muro: '#efe6d4', remate: '#c9bda6' },
+        { c0: 53, c1: 67, techo: 1, muro: '#e8c48a', remate: '#b99660' }
+      ],
+      laureles: [9, 16, 77, 87, 106, 128].map(c => c * T),
+      dibujarFondo: dibujarFondoPlaza,
+      dibujarDecoracion: dibujarDecoracionPlaza,
+      dibujarSolido: dibujarSolidoPlaza,
+      dibujarPlataforma: dibujarBalcon
+    }, h => {
+      // Tramo 1: salida
+      h.suelo(0, 19);
+      h.monedas(5, 9, 8);
+      // Tramo 2: primera casa con balcones y muros de piedra
+      h.suelo(22, 47);
+      h.plataforma(26, 29, 6); h.monedas(26, 29, 5);
+      h.plataforma(32, 35, 4); h.monedas(32, 35, 3);
+      h.bloque(43, 44, 8, 8);
+      h.bloque(45, 46, 7, 8); h.monedas(45, 46, 5);
+      // Tramo 3: casona de dos plantas, balcones en escalera
+      h.suelo(51, 70);
+      h.plataforma(55, 57, 7); h.monedas(55, 57, 6);
+      h.plataforma(59, 61, 5); h.monedas(59, 61, 4);
+      h.plataforma(63, 65, 3); h.monedas(63, 65, 2);
+      // Tramo 4: bajo los laureles
+      h.suelo(73, 90);
+      h.monedas(77, 80, 8);
+      h.bloque(82, 83, 7, 8); h.monedas(82, 83, 5);
+      // Tramo 5: barranquillo con piedras sueltas
+      h.bloque(93, 94, 7, 7);
+      h.bloque(97, 98, 6, 6); h.monedas(95, 96, 4);
+      // Tramo 6: plaza de San Juan y basílica (arena de la bruja)
+      h.suelo(101, COLS - 1);
+    }),
+
+    /* ---------- Parte 2: playa de La Garita y el Bufadero ---------- */
+    crearNivel({
+      id: 'n2',
+      musica: 'garita',
+      jefe: 'triton',
+      faroles: [2, 52, 74, 102],
+      puntoControl: 'farol',
+      arena: { x0: 1700, x1: 2020, activa: false },
+      meta: { x0: BARCA_X + 4, x1: BARCA_X + 44 },   // la barca varada
+      aguaY: 150,                             // por debajo de esta altura, al agua
+      colorPolvo: '#6e6562',
+      palmeras: [6, 14, 28, 48, 62, 79, 88, 104, 131].map(c => c * T),
+      barcas: [9, 56, 84].map(c => c * T),
+      dibujarFondo: dibujarFondoGarita,
+      dibujarDecoracion: dibujarDecoracionGarita,
+      dibujarSolido: dibujarSolidoGarita,
+      dibujarPlataforma: dibujarMuelle
+    }, h => {
+      // Tramo 1: paseo marítimo y primer charco de mar
+      h.suelo(0, 18);
+      h.monedas(5, 9, 8);
+      // Tramo 2: muelles de madera sobre la arena
+      h.suelo(21, 40);
+      h.plataforma(25, 28, 6); h.monedas(25, 28, 5);
+      h.plataforma(31, 34, 4); h.monedas(31, 34, 3);
+      h.bloque(37, 38, 7, 8);
+      // Tramo 3: primer bufadero (hueco demasiado ancho para saltarlo)
+      h.bufadero(41, 5, 3.2, 0);
+      h.monedas(42, 44, 2);
+      // Tramo 4: rocas volcánicas en escalera
+      h.suelo(46, 66);
+      h.bloque(50, 51, 8, 8); h.bloque(52, 53, 7, 8); h.bloque(54, 55, 6, 8); h.monedas(54, 55, 4);
+      h.plataforma(58, 60, 4); h.monedas(58, 60, 3);
+      // Tramo 5: segundo bufadero, con el ritmo cambiado
+      h.bufadero(67, 5, 3.2, 1.6);
+      h.monedas(68, 70, 2);
+      // Tramo 6: arena negra
+      h.suelo(72, 90);
+      h.monedas(76, 79, 8);
+      h.bloque(82, 83, 7, 8); h.monedas(82, 83, 5);
+      // Tramo 7: rocas sueltas sobre el mar
+      h.bloque(93, 94, 7, 7);
+      h.bloque(97, 98, 6, 6); h.monedas(95, 96, 4);
+      // Tramo 8: el Bufadero (arena del tritón) y la barca
+      h.suelo(101, COLS - 1);
+    }),
+
+    /* ---------- Parte 3: Montaña de Cuatro Puertas ---------- */
+    crearNivel({
+      id: 'n3',
+      musica: 'cuevas',
+      jefe: 'guardian',
+      faroles: [2, 46, 66, 102],
+      puntoControl: 'hoguera',                // aquí los puntos de control son hogueras
+      arena: { x0: 1700, x1: 2020, activa: false },
+      meta: { x0: CUEVA_X + 6, x1: CUEVA_X + 80 },   // las cuatro puertas de la cueva
+      aguaY: null,
+      colorPolvo: '#d9a774',
+      cardones: [8, 22, 47, 64, 78, 92, 105, 120].map(c => c * T),
+      tabaibas: [4, 13, 31, 52, 69, 86, 97, 110, 116].map(c => c * T),
+      dibujarFondo: dibujarFondoCuevas,
+      dibujarDecoracion: dibujarDecoracionCuevas,
+      dibujarSolido: dibujarSolidoCuevas,
+      dibujarPlataforma: dibujarRepisa
+    }, h => {
+      // Tramo 1: sendero al pie de la montaña
+      h.suelo(0, 16);
+      h.monedas(5, 9, 8);
+      // Tramo 2: la ladera sube en escalones de toba
+      h.suelo(20, 34);
+      h.bloque(24, 34, 8, 8);
+      h.bloque(28, 34, 7, 7); h.monedas(29, 33, 6);
+      // Tramo 3: puente de repisas agrietadas sobre un barranquillo
+      h.fragil(35, 39, 7); h.monedas(36, 38, 5);
+      h.suelo(40, 58);
+      h.bloque(40, 44, 7, 8);
+      // Tramo 4: repisas talladas y una columna de toba
+      h.plataforma(48, 50, 7); h.monedas(48, 50, 6);
+      h.plataforma(52, 54, 5); h.monedas(52, 54, 4);
+      h.bloque(56, 58, 5, 8); h.monedas(56, 58, 3);
+      // Tramo 5: repisas agrietadas para cruzar
+      h.fragil(60, 61, 7);
+      h.suelo(63, 80);
+      h.monedas(66, 70, 8);
+      h.bloque(72, 73, 7, 8);
+      h.bloque(74, 75, 5, 8); h.monedas(74, 75, 4);
+      // Tramo 6: otro barranquillo
+      h.fragil(82, 83, 8);
+      h.suelo(85, 98);
+      h.plataforma(88, 91, 7); h.monedas(88, 91, 6);
+      h.fragil(94, 96, 6); h.monedas(94, 96, 5);
+      // Tramo 7: explanada ante la cueva (arena del guardián)
+      h.suelo(101, COLS - 1);
+    }),
+
+    /* ---------- Parte 4: Barranco Real de Telde ---------- */
+    crearNivel({
+      id: 'n4',
+      musica: 'barranco',
+      jefe: 'tibicena',
+      tiendaAntes: true,                      // antes de esta parte se pasa por el súper
+      faroles: [2, 40, 64, 102],
+      puntoControl: 'hoguera',
+      arena: { x0: 1700, x1: 2020, activa: false },
+      meta: { x0: CUEVA_X + 6, x1: CUEVA_X + 80 },   // las cuevas del poblado de Tara
+      aguaY: null,
+      colorPolvo: '#a89a8a',
+      palmeras: [5, 24, 42, 66, 88, 104].map(c => c * T),
+      plataneras: [10, 13, 21, 28, 33, 52, 58, 68, 76, 92, 96].map(c => c * T),
+      dibujarFondo: dibujarFondoBarranco,
+      dibujarDecoracion: dibujarDecoracionBarranco,
+      dibujarSolido: dibujarSolidoBarranco,
+      dibujarPlataforma: dibujarRepisa
+    }, h => {
+      // Tramo 1: lecho del barranco entre plataneras
+      h.suelo(0, 14);
+      h.monedas(4, 8, 8);
+      // Tramo 2: una acequia te lleva al otro lado del primer hueco
+      h.acequia(11, 22, 7, 1); h.monedas(13, 20, 6);
+      h.suelo(18, 34);
+      h.bloque(26, 27, 7, 8);
+      h.acequia(29, 33, 5, -1); h.monedas(29, 33, 4);
+      // Tramo 3: acequia sobre un hueco ancho
+      h.acequia(36, 38, 7, 1); h.monedas(36, 38, 6);
+      h.suelo(40, 60);
+      // Tramo 4: muros de piedra seca y una acequia alta
+      h.bloque(44, 45, 8, 8); h.bloque(46, 47, 7, 8); h.bloque(48, 49, 6, 8); h.monedas(48, 49, 5);
+      h.acequia(51, 56, 4, 1); h.monedas(52, 55, 3);
+      // Tramo 5: acequia a contracorriente
+      h.suelo(64, 80); h.monedas(66, 70, 8);
+      h.acequia(73, 78, 7, -1); h.monedas(73, 78, 6);
+      // Tramo 6: barranquillo con una piedra para pisar
+      h.bloque(82, 83, 8, 8);
+      h.suelo(85, 98);
+      h.bloque(90, 91, 7, 8); h.monedas(90, 91, 5);
+      // Tramo 7: explanada bajo Tara (arena del tibicena)
+      h.suelo(101, COLS - 1);
+    })
+  ];
+
+  let indiceNivel = 0;
+  let nivel = NIVELES[0];
+  let faroles = [];     // puntos de control del nivel actual (faroles u hogueras)
+
+  function casilla(c, f) {
+    if (c < 0 || c >= COLS) return SOLIDO;   // paredes invisibles en los extremos
+    if (f < 0 || f >= ROWS) return VACIO;
+    const t = nivel.mapa[f][c];
+    if (t === FRAGIL && nivel.fragiles.get(f * COLS + c).estado === 'rota') return VACIO;
+    return t;
+  }
+
+  /* =========================================================
+     3. ESTADO DEL JUEGO
+     ========================================================= */
+  const jugador = { x: 0, y: 0, w: 10, h: 14, vx: 0, vy: 0, enSuelo: false, mira: 1, coyote: 0, buffer: 0, paso: 0,
+                    corazones: 3, invuln: 0, retroceso: 0, lanzado: false,
+                    corriente: 0,       // sentido del agua si está sobre una acequia
+                    escudo: false,      // papas con mojo: bloquea un golpe
+                    platanos: 0 };      // plátanos que le quedan por lanzar
+  const estado = { modo: 'inicio', tiempo: 0, caidas: 0, control: 0, camX: 0, reloj: 0,
+                   monedasPrevias: 0, totalPrevias: 0,   // monedas de las partes ya superadas
+                   gastado: 0,                           // monedas gastadas en el súper
+                   inventario: { gofio: false, mojo: false, platanos: false },
+                   tiendaDestino: 0 };                   // parte que empieza al salir del súper
+  const chispas = [];
+
+  // Corazones en los combates: los de la dificultad, más uno si se compró gofio
+  const vidasMax = () => dif.vidas + (estado.inventario.gofio ? 1 : 0);
+
+  // Empieza una partida desde la parte indicada (0 = la primera)
+  function nuevaPartida(desde = 0) {
+    estado.tiempo = 0; estado.caidas = 0;
+    estado.monedasPrevias = 0; estado.totalPrevias = 0;
+    estado.gastado = 0;
+    estado.inventario = { gofio: false, mojo: false, platanos: false };
+    cargarNivel(desde);
+  }
+
+  function cargarNivel(i) {
+    indiceNivel = i;
+    nivel = NIVELES[i];
+    nivel.monedas.forEach(m => (m.cogida = false));
+    for (const fr of nivel.fragiles.values()) { fr.estado = 'firme'; fr.t = 0; }
+    faroles = nivel.faroles.map((c, k) => ({ x: c * T, encendido: k === 0 }));
+    estado.control = 0;
+    chispas.length = 0;
+    reiniciarJefe();
+    reaparecer();
+    estado.camX = 0;
+    textoLugar.textContent = tr(`${nivel.id}.lugar`);
+    actualizarHUD(true);
+  }
+
+  function reaparecer() {
+    const f = faroles[estado.control];
+    Object.assign(jugador, { x: f.x + 12, y: SUELO_Y - jugador.h, vx: 0, vy: 0, enSuelo: false, mira: 1, coyote: 0, buffer: 0,
+                             corazones: vidasMax(), invuln: 0, retroceso: 0, lanzado: false, corriente: 0,
+                             escudo: estado.inventario.mojo, platanos: estado.inventario.platanos ? 3 : 0 });
+    platanosVuelo.length = 0;
+  }
+
+  /* =========================================================
+     4. ENTRADA (teclado y botones táctiles)
+     ========================================================= */
+  const entrada = { izq: false, der: false, salto: false, abajo: false, lanzar: false, saltoPulsado: false, lanzarPulsado: false };
+  const TECLAS = {
+    ArrowLeft: 'izq', KeyA: 'izq',
+    ArrowRight: 'der', KeyD: 'der',
+    ArrowUp: 'salto', KeyW: 'salto', Space: 'salto',
+    ArrowDown: 'abajo', KeyS: 'abajo',
+    KeyX: 'lanzar', KeyK: 'lanzar'
+  };
+
+  function pulsar(accion, activo) {
+    if (accion === 'salto' && activo && !entrada.salto) entrada.saltoPulsado = true;
+    if (accion === 'lanzar' && activo && !entrada.lanzar) entrada.lanzarPulsado = true;
+    entrada[accion] = activo;
+  }
+
+  window.addEventListener('keydown', e => {
+    Sonido.iniciar();
+    if (e.code === 'KeyM' && !e.repeat) { alternarSonido(); return; }
+    // Esc o P: pausa durante la partida; en "Cómo jugar", vuelve al menú
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
+      if (estado.modo === 'jugando' || estado.modo === 'pausa') { e.preventDefault(); alternarPausa(); return; }
+      if (panelActivo === 'como') { volverAlMenu(); return; }
+    }
+    const accion = TECLAS[e.code];
+    if (estado.modo !== 'jugando') {
+      // Fuera de la partida, las flechas recorren los botones del menú
+      if (e.code.startsWith('Arrow')) { e.preventDefault(); moverFoco(e.code === 'ArrowUp' || e.code === 'ArrowLeft' ? -1 : 1); return; }
+      // Intro o Espacio continúan (si hay un botón enfocado, lo pulsa el navegador)
+      const enBoton = document.activeElement && document.activeElement.tagName === 'BUTTON';
+      if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat && !enBoton) { e.preventDefault(); continuar(); }
+      return;
+    }
+    if (accion) { e.preventDefault(); if (!e.repeat) pulsar(accion, true); }
+  });
+  window.addEventListener('keyup', e => {
+    const accion = TECLAS[e.code];
+    if (accion) pulsar(accion, false);
+  });
+  window.addEventListener('pointerdown', () => Sonido.iniciar());
+  window.addEventListener('blur', () => { for (const k of ['izq', 'der', 'salto', 'abajo', 'lanzar']) entrada[k] = false; });
+
+  document.querySelectorAll('#tactil button').forEach(b => {
+    const accion = b.dataset.tecla;
+    if (accion === 'pausa') { b.addEventListener('pointerdown', e => { e.preventDefault(); alternarPausa(); }); return; }
+    const on = e => { e.preventDefault(); pulsar(accion, true); b.classList.add('activo'); };
+    const off = () => { pulsar(accion, false); b.classList.remove('activo'); };
+    b.addEventListener('pointerdown', on);
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointercancel', off);
+    b.addEventListener('pointerleave', off);
+  });
+
+  /* =========================================================
+     5. FÍSICA Y COLISIONES
+     ========================================================= */
+  function actualizar(dt) {
+    const p = jugador, F = FISICA, arena = nivel.arena;
+
+    // Temporizadores tras recibir un golpe
+    p.invuln = Math.max(0, p.invuln - dt);
+    p.retroceso = Math.max(0, p.retroceso - dt);
+
+    // Movimiento horizontal con aceleración y frenado (sin control durante el retroceso)
+    const dir = p.retroceso > 0 ? 0 : (entrada.der ? 1 : 0) - (entrada.izq ? 1 : 0);
+    if (dir) {
+      p.vx += dir * (p.enSuelo ? F.acelSuelo : F.acelAire) * dt;
+      p.vx = Math.max(-F.velMax, Math.min(F.velMax, p.vx));
+      p.mira = dir;
+    } else if (p.enSuelo) {
+      const freno = F.frenoSuelo * dt;
+      p.vx = Math.abs(p.vx) <= freno ? 0 : p.vx - Math.sign(p.vx) * freno;
+    }
+
+    // Salto con "tiempo coyote" y búfer de salto
+    p.coyote = p.enSuelo ? F.coyote : p.coyote - dt;
+    p.buffer = entrada.saltoPulsado ? F.bufferSalto : p.buffer - dt;
+    entrada.saltoPulsado = false;
+    if (p.buffer > 0 && p.coyote > 0) {
+      p.vy = -F.salto; p.buffer = 0; p.coyote = 0; p.enSuelo = false;
+      Sonido.efecto('salto');
+    }
+    // Lanzar un plátano (parte 4, si se compraron en el súper)
+    if (entrada.lanzarPulsado) {
+      entrada.lanzarPulsado = false;
+      if (p.platanos > 0) lanzarPlatano();
+    }
+
+    // Salto variable (no se corta si nos ha lanzado un bufadero)
+    if (!entrada.salto && !p.lanzado && p.vy < -F.corteSalto) p.vy = -F.corteSalto;
+
+    p.vy = Math.min(p.vy + F.gravedad * dt, F.caidaMax);
+
+    // Mover por ejes separados: primero X, luego Y
+    // (las acequias arrastran al jugador en el sentido del agua)
+    const empuje = p.enSuelo ? p.corriente * CORRIENTE : 0;
+    const dx = (p.vx + empuje) * dt;
+    p.x += dx;
+    colisionX(p, Math.sign(dx));
+    const pieAntes = p.y + p.h;
+    p.y += p.vy * dt;
+    colisionY(p, pieAntes);
+
+    // Durante el combate, paredes invisibles a los lados de la arena
+    if (arena.activa) {
+      if (p.x < arena.x0) { p.x = arena.x0; p.vx = 0; }
+      if (p.x > arena.x1 - p.w) { p.x = arena.x1 - p.w; p.vx = 0; }
+    }
+
+    // Bufaderos y repisas agrietadas
+    const enChorro = actualizarBufaderos(p);
+    if (p.lanzado && p.vy >= 0) p.lanzado = false;
+    actualizarFragiles(dt);
+
+    // Animación de pasos
+    p.paso = p.enSuelo && Math.abs(p.vx) > 10 ? p.paso + Math.abs(p.vx) * dt : 0;
+
+    // Caer al mar (parte 2) o al vacío: volver al último punto de control
+    if (nivel.aguaY !== null && p.y > nivel.aguaY && !enChorro) {
+      polvo(p.x + p.w / 2, nivel.aguaY, '#cfeaf5');
+      Sonido.efecto('agua');
+      estado.caidas++; reaparecer(); actualizarHUD(true);
+    } else if (p.y > H + 40) {
+      Sonido.efecto('caida');
+      estado.caidas++; reaparecer(); actualizarHUD(true);
+    }
+
+    // Puntos de control
+    faroles.forEach((f, i) => {
+      if (!f.encendido && p.x > f.x) { f.encendido = true; estado.control = i; Sonido.efecto('control'); }
+    });
+
+    // Monedas
+    for (const m of nivel.monedas) {
+      if (m.cogida) continue;
+      if (p.x < m.x + 4 && p.x + p.w > m.x - 4 && p.y < m.y + 5 && p.y + p.h > m.y - 5) {
+        m.cogida = true;
+        for (let i = 0; i < 6; i++) chispas.push({ x: m.x, y: m.y, vx: (Math.random() - .5) * 80, vy: -Math.random() * 90, vida: .4 });
+        Sonido.efecto('moneda');
+        actualizarHUD(true);
+      }
+    }
+    for (let i = chispas.length - 1; i >= 0; i--) {
+      const c = chispas[i];
+      c.vida -= dt; c.vy += 300 * dt; c.x += c.vx * dt; c.y += c.vy * dt;
+      if (c.vida <= 0) chispas.splice(i, 1);
+    }
+
+    // Plátanos en el aire y jefe
+    actualizarPlatanos(dt);
+    actualizarJefe(dt);
+    if (estado.modo !== 'jugando') return;
+
+    // Meta (solo tras vencer al jefe)
+    const centro = p.x + p.w / 2;
+    if (jefe.fase === 'vencida' && p.enSuelo && centro > nivel.meta.x0 && centro < nivel.meta.x1) terminar();
+
+    // Cámara: sigue al jugador mirando un poco hacia delante; fija durante el combate
+    const objetivo = arena.activa ? arena.x0 : p.x + p.w / 2 - W / 2 + p.mira * 24;
+    estado.camX += (objetivo - estado.camX) * Math.min(1, dt * 6);
+    estado.camX = Math.max(0, Math.min(ANCHO_NIVEL - W, estado.camX));
+
+    estado.tiempo += dt;
+  }
+
+  // sentido: 1 si se ha movido a la derecha, -1 a la izquierda
+  function colisionX(p, sentido) {
+    const fArr = Math.floor(p.y / T), fAb = Math.floor((p.y + p.h - 0.01) / T);
+    if (sentido > 0) {
+      const c = Math.floor((p.x + p.w) / T);
+      for (let f = fArr; f <= fAb; f++) if (casilla(c, f) === SOLIDO) { p.x = c * T - p.w; p.vx = 0; break; }
+    } else if (sentido < 0) {
+      const c = Math.floor(p.x / T);
+      for (let f = fArr; f <= fAb; f++) if (casilla(c, f) === SOLIDO) { p.x = (c + 1) * T; p.vx = 0; break; }
+    }
+  }
+
+  function colisionY(p, pieAntes) {
+    p.enSuelo = false;
+    p.corriente = 0;
+    const cIz = Math.floor(p.x / T), cDe = Math.floor((p.x + p.w - 0.01) / T);
+    if (p.vy > 0) {
+      const f = Math.floor((p.y + p.h) / T);
+      for (let c = cIz; c <= cDe; c++) {
+        const t = casilla(c, f);
+        // Plataformas y repisas solo frenan si veníamos desde arriba y no se pulsa ↓
+        const pisaPlataforma = (t === PLATAFORMA || t === FRAGIL || t === ACEQUIA) && !entrada.abajo && pieAntes <= f * T + 0.5;
+        if (t === SOLIDO || pisaPlataforma) {
+          p.y = f * T - p.h; p.vy = 0; p.enSuelo = true;
+          if (t === FRAGIL) {  // al pisar una repisa agrietada empieza a temblar
+            const fr = nivel.fragiles.get(f * COLS + c);
+            if (fr.estado === 'firme') { fr.estado = 'temblando'; fr.t = 0; }
+          }
+          if (t === ACEQUIA) p.corriente = nivel.corrientes.get(f * COLS + c);
+          break;
+        }
+      }
+    } else if (p.vy < 0) {
+      const f = Math.floor(p.y / T);
+      for (let c = cIz; c <= cDe; c++) if (casilla(c, f) === SOLIDO) { p.y = (f + 1) * T; p.vy = 0; break; }
+    }
+  }
+
+  // Cada bufadero repite un ciclo: calma → burbujas (aviso) → chorro
+  function faseBufadero(b) {
+    const k = (estado.reloj + b.desfase) % b.periodo;
+    const inicioChorro = b.periodo - BUFADERO.duracionChorro;
+    if (k >= inicioChorro) return 'chorro';
+    if (k >= inicioChorro - BUFADERO.duracionAviso) return 'aviso';
+    return 'calma';
+  }
+
+  // Lanza al jugador si toca un chorro activo; devuelve si está dentro de uno
+  function actualizarBufaderos(p) {
+    let dentro = false;
+    const mitad = BUFADERO.ancho / 2;
+    for (const b of nivel.bufaderos) {
+      if (faseBufadero(b) !== 'chorro') continue;
+      if (p.x + p.w > b.cx - mitad && p.x < b.cx + mitad && p.y + p.h > SUELO_Y - BUFADERO.altura) {
+        dentro = true;
+        if (p.vy > -BUFADERO.impulso * .55) {
+          p.vy = -BUFADERO.impulso; p.lanzado = true; p.enSuelo = false; p.coyote = 0;
+          Sonido.efecto('bufadero');
+        }
+      }
+    }
+    return dentro;
+  }
+
+  // Repisas agrietadas: firme → temblando → rota → (al rato) firme
+  function actualizarFragiles(dt) {
+    for (const fr of nivel.fragiles.values()) {
+      if (fr.estado === 'temblando') {
+        fr.t += dt;
+        if (fr.t > REPISA.aguante) {
+          fr.estado = 'rota'; fr.t = 0;
+          polvo(fr.c * T + 8, fr.f * T + 4, nivel.colorPolvo);
+          Sonido.efecto('derrumbe');
+        }
+      } else if (fr.estado === 'rota') {
+        fr.t += dt;
+        const p = jugador;
+        const tapada = p.x < fr.c * T + T && p.x + p.w > fr.c * T && p.y < fr.f * T + T && p.y + p.h > fr.f * T;
+        if (fr.t > REPISA.regreso && !tapada) { fr.estado = 'firme'; fr.t = 0; }
+      }
+    }
+  }
+
+  /* =========================================================
+     5b. JEFES
+     Los tres jefes comparten el mismo ciclo de ataque:
+       entrada → llega a la arena
+       vuelo   → se mueve de lado a lado disparando
+       aviso   → se coloca sobre el jugador y una sombra marca dónde caerá
+       picado  → cae en picado
+       suelo   → queda aturdido: ¡momento de saltarle encima!
+       subida  → vuelve arriba y repite
+     Tras cada golpe se enfada (más rápido) y, según la dificultad,
+     invoca perseguidores. Con 3 golpes se retira y se abre la meta.
+     Lo que cambia entre jefes está en JEFES; sus nombres y avisos,
+     en TEXTOS (jefe.bruja.nombre, jefe.bruja.inicio, jefe.bruja.fin…).
+     ========================================================= */
+  const VIDA_JEFE = 3;   // golpes por defecto (cada jefe puede tener los suyos con "vida")
+  const vidaMaxJefe = () => cfgJefe().vida || VIDA_JEFE;
+  const JEFES = {
+    bruja: {
+      entrada: { x0: 2040, y0: 20, x1: 1930, y1: 46 },   // llega volando desde la derecha
+      huida: { vx: 90, vy: -70, g: 0 },                  // se aleja volando
+      flota: true,                                       // se balancea en el aire
+      proyectil: 'fuego',                                // fuegos fatuos en línea recta
+      invocado: 'espiritu',
+      colorGolpe: '#c9a2f2',
+      dibujar: dibujarBruja
+    },
+    triton: {
+      entrada: { x0: BUFA_CX - 7, y0: 190, x1: BUFA_CX - 7, y1: 46 }, // sale del Bufadero
+      huida: { vx: null, vy: -220, g: 520 },             // salta de vuelta al Bufadero
+      flota: true,
+      proyectil: 'caracola',                             // caracolas lanzadas en arco
+      invocado: 'medusa',
+      colorGolpe: '#9fe0d0',
+      dibujar: dibujarTriton
+    },
+    guardian: {
+      entrada: { x0: 2040, y0: 46, x1: 1930, y1: 46 },   // llega caminando por la repisa alta
+      huida: { vx: 110, vy: -80, g: 0 },                 // trepa por la montaña
+      flota: false,                                      // camina por la repisa, no vuela
+      proyectil: 'piedra',                               // piedras lanzadas en arco
+      invocado: 'cabra',                                 // cabras que corren por el suelo
+      colorGolpe: '#e8c9a0',
+      dibujar: dibujarGuardian
+    },
+    tibicena: { // jefe final: un perro enorme de la mitología aborigen
+      w: 22, h: 16, ancho: 24,                           // más grande que los demás
+      vida: 4,                                           // hacen falta 4 golpes
+      entrada: { x0: 2040, y0: 50, x1: 1930, y1: 50 },   // llega corriendo por la repisa alta
+      huida: { vx: 130, vy: -110, g: 0 },                // vuelve de un salto a su cueva
+      flota: false,
+      proyectil: 'llama',                                // bolas de fuego de sus ojos rojos
+      invocado: 'cuervo',                                // cuervos que persiguen al jugador
+      colorGolpe: '#ff6a4a',
+      dibujar: dibujarTibicena
+    }
+  };
+
+  const jefe = { x: 0, y: 0, w: 14, h: 20, vida: VIDA_JEFE, fase: 'espera', t: 0, mira: -1, destinoX: 0, disparo: 0, reloj: 0,
+                 vy: 0, vxHuida: 0, salpicado: false };
+  const proyectiles = [];
+
+  const limitar = (v, min, max) => Math.max(min, Math.min(max, v));
+  const solapan = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const cfgJefe = () => JEFES[nivel.jefe];
+  const rabia = () => 1 + (vidaMaxJefe() - jefe.vida) * dif.rabiaPorGolpe;
+
+  function reiniciarJefe() {
+    const e = cfgJefe().entrada;
+    Object.assign(jefe, { x: e.x0, y: e.y0, w: cfgJefe().w || 14, h: cfgJefe().h || 20, vida: vidaMaxJefe(), fase: 'espera', t: 0, mira: -1, disparo: 1, reloj: 0, vy: 0, salpicado: false });
+    proyectiles.length = 0;
+    nivel.arena.activa = false;
+    actualizarBarraJefe();
+    Sonido.musica(nivel.musica);
+  }
+
+  function cambiarFase(fase) { jefe.fase = fase; jefe.t = 0; }
+
+  // Bruja: fuego fatuo en línea recta hacia el jugador
+  function lanzarFuego(tipo = 'fuego', color = '#7dff9a') {
+    const b = jefe, p = jugador;
+    const ox = b.x + b.w / 2, oy = b.y + b.h;
+    const dx = p.x + p.w / 2 - ox, dy = p.y + p.h / 2 - oy, d = Math.hypot(dx, dy) || 1, v = dif.velFuego * rabia();
+    proyectiles.push({ tipo, x: ox, y: oy, vx: (dx / d) * v, vy: Math.max(30, (dy / d) * v), r: 3, vida: 4, rompe: true, color });
+  }
+
+  // Tritón y guardián: proyectil lanzado en arco, calculado para caer cerca del jugador
+  function lanzarArco(tipo, color) {
+    const b = jefe, p = jugador;
+    const ox = b.x + b.w / 2, oy = b.y + 6;
+    const grav = 300, vy0 = -90;
+    const alto = SUELO_Y - 4 - oy;
+    const tVuelo = (-vy0 + Math.sqrt(vy0 * vy0 + 2 * grav * alto)) / grav;
+    const max = dif.velFuego * 1.6 * rabia();
+    const vx = limitar((p.x + p.w / 2 - ox) / tVuelo, -max, max);
+    proyectiles.push({ tipo, x: ox, y: oy, vx, vy: vy0, g: grav, r: 3, vida: 4, rompe: true, color });
+  }
+
+  function disparar() {
+    const tipo = cfgJefe().proyectil;
+    if (tipo === 'caracola') lanzarArco('caracola', '#e8c9a0');
+    else if (tipo === 'piedra') lanzarArco('piedra', '#9a8e84');
+    else if (tipo === 'llama') lanzarFuego('llama', '#ff6a3a');
+    else lanzarFuego();
+    Sonido.efecto('lanzar');
+  }
+
+  // Perseguidores: espíritus y medusas vuelan hacia el jugador; las cabras corren por el suelo
+  function invocar() {
+    const tipo = cfgJefe().invocado, arena = nivel.arena;
+    if (tipo === 'cabra') {
+      for (const x of [arena.x0 + 8, arena.x1 - 8])
+        proyectiles.push({ tipo, x, y: SUELO_Y - 5, vx: 0, vy: 0, r: 5, vida: 5, corre: true, color: '#e6dccb' });
+      return;
+    }
+    for (const lado of [-1, 1])
+      proyectiles.push({ tipo, x: jefe.x + jefe.w / 2 + lado * 14, y: jefe.y, vx: lado * 30, vy: -10, r: 4, vida: 5,
+                         persigue: true, color: { medusa: '#f2a6d0', cuervo: '#3a3440' }[tipo] || '#d9ecff' });
+  }
+
+  function polvo(x, y, color) {
+    for (let i = 0; i < 8; i++) chispas.push({ x, y, vx: (Math.random() - .5) * 120, vy: -Math.random() * 80, vida: .45, color });
+  }
+
+  // El jugador recibe un golpe: pierde un corazón y sale despedido
+  function herir(dir) {
+    const p = jugador;
+    if (p.invuln > 0) return;
+    if (p.escudo) {                  // las papas con mojo aguantan el golpe
+      p.escudo = false;
+      p.invuln = dif.invuln; p.retroceso = .2;
+      p.vx = dir * 110; p.vy = -150; p.enSuelo = false; p.lanzado = false;
+      polvo(p.x + p.w / 2, p.y + 4, '#e2552f');
+      Sonido.efecto('pisar');
+      actualizarHUD(true);
+      return;
+    }
+    p.corazones--;
+    p.invuln = dif.invuln; p.retroceso = .25;
+    p.vx = dir * 130; p.vy = -180; p.enSuelo = false; p.lanzado = false;
+    Sonido.efecto('golpe');
+    if (p.corazones <= 0) {          // sin vidas: se repite el combate desde el último punto de control
+      estado.caidas++;
+      reiniciarJefe();
+      reaparecer();
+      mostrarAviso(tr('otraVez'));
+    }
+    actualizarHUD(true);
+  }
+
+  /* ----- Plátanos: se compran en el súper y se lanzan con X en la parte 4 ----- */
+  const platanosVuelo = [];
+
+  function lanzarPlatano() {
+    const p = jugador, b = jefe, G = 300;
+    const ox = p.x + p.w / 2, oy = p.y + 4;
+    let vx, vy;
+    const objetivo = nivel.arena.activa && ['entrada', 'vuelo', 'aviso', 'subida', 'picado', 'suelo'].includes(b.fase);
+    if (objetivo) {     // durante el combate, el plátano sale hacia arriba y persigue al jefe
+      vx = 90 * p.mira; vy = -260;
+    } else {            // si no, sale en arco hacia delante
+      vx = 170 * p.mira; vy = -200;
+    }
+    platanosVuelo.push({ x: ox, y: oy, vx, vy, g: G, vida: 2, sigue: objetivo });
+    p.platanos--;
+    Sonido.efecto('lanzar');
+    actualizarHUD(true);
+  }
+
+  function actualizarPlatanos(dt) {
+    const b = jefe;
+    for (let i = platanosVuelo.length - 1; i >= 0; i--) {
+      const o = platanosVuelo[i];
+      const golpeable = nivel.arena.activa && !['espera', 'vencida', 'herida', 'huida'].includes(b.fase);
+      o.vida -= dt;
+      if (o.sigue && golpeable) {   // gira poco a poco hacia el jefe
+        const dx = b.x + b.w / 2 - o.x, dy = b.y + b.h / 2 - o.y, d = Math.hypot(dx, dy) || 1;
+        const k = Math.min(1, dt * 6);
+        o.vx += (dx / d * 300 - o.vx) * k; o.vy += (dy / d * 300 - o.vy) * k;
+      } else {
+        o.vy += o.g * dt;
+      }
+      o.x += o.vx * dt; o.y += o.vy * dt;
+      if (o.y > SUELO_Y - 2) { o.vida = 0; polvo(o.x, SUELO_Y - 2, '#f2d43a'); }
+      // Si da al jefe, lo derriba (o lo deja más rato aturdido si ya está en el suelo)
+      if (o.vida > 0 && golpeable && o.x > b.x - 2 && o.x < b.x + b.w + 2 && o.y > b.y - 2 && o.y < b.y + b.h + 2) {
+        o.vida = 0;
+        polvo(o.x, o.y, '#f2d43a');
+        Sonido.efecto('pisar');
+        if (b.fase === 'suelo') b.t = 0;
+        else if (b.fase !== 'picado') { b.destinoX = b.x; cambiarFase('picado'); }
+      }
+      // También deshace los disparos y perseguidores que toca
+      for (const q of proyectiles) {
+        if (o.vida > 0 && q.vida > 0 && Math.abs(q.x - o.x) < q.r + 3 && Math.abs(q.y - o.y) < q.r + 3) {
+          q.vida = 0; o.vida = 0; polvo(q.x, q.y, q.color);
+        }
+      }
+      if (o.vida <= 0) platanosVuelo.splice(i, 1);
+    }
+  }
+
+  function empezarHuida() {
+    const b = jefe, h = cfgJefe().huida;
+    cambiarFase('huida');
+    b.vy = h.vy;
+    b.vxHuida = h.vx !== null ? h.vx : (cfgJefe().entrada.x1 - b.x) / .85; // el tritón apunta al Bufadero
+    b.salpicado = false;
+    Sonido.efecto('victoria');
+  }
+
+  function actualizarJefe(dt) {
+    const p = jugador, b = jefe, cfg = cfgJefe(), arena = nivel.arena;
+    if (b.fase === 'vencida') return;
+
+    // Empieza el combate al entrar en la arena
+    if (b.fase === 'espera') {
+      if (p.x > arena.x0 + 24) {
+        arena.activa = true;
+        cambiarFase('entrada');
+        actualizarBarraJefe(); actualizarHUD(true);
+        mostrarAviso(tr(`jefe.${nivel.jefe}.inicio`));
+        Sonido.efecto('jefe');
+        Sonido.musica('jefe');
+      }
+      return;
+    }
+
+    b.t += dt; b.reloj += dt;
+    const centroJ = p.x + p.w / 2;
+    if (b.fase !== 'huida') b.mira = centroJ < b.x + b.w / 2 ? -1 : 1;
+
+    switch (b.fase) {
+      case 'entrada': {
+        const e = cfg.entrada, k = Math.min(1, b.t / 1.5);
+        b.x = e.x0 + (e.x1 - e.x0) * k; b.y = e.y0 + (e.y1 - e.y0) * k;
+        if (k >= 1) cambiarFase('vuelo');
+        break;
+      }
+      case 'vuelo': {
+        const objetivoX = 1840 + Math.cos(b.t * 1.2 * rabia()) * 90;
+        b.x += (objetivoX - b.x) * Math.min(1, dt * 3);
+        b.y = (66 - b.h) + (cfg.flota ? Math.sin(b.reloj * 3) * 6 : 0);   // a la altura de la repisa alta
+        b.disparo -= dt;
+        if (b.disparo <= 0) { b.disparo = dif.cadenciaFuego / rabia(); disparar(); }
+        if (b.t > 3.6) {
+          if (b.vida <= dif.invocaConVida) invocar();
+          b.destinoX = limitar(centroJ - b.w / 2, arena.x0 + 8, arena.x1 - b.w - 8);
+          cambiarFase('aviso');
+        }
+        break;
+      }
+      case 'aviso': // se coloca sobre el punto donde va a caer y tiembla (o se agacha)
+        b.x += (b.destinoX - b.x) * Math.min(1, dt * 5);
+        b.y = cfg.flota ? 60 - b.h + Math.sin(b.t * 40) : 67 - b.h + Math.round(Math.sin(b.t * 40) * .6);
+        if (b.t > dif.aviso) cambiarFase('picado');
+        break;
+      case 'picado':
+        b.x = b.destinoX; b.y += dif.velPicado * dt;
+        if (b.y >= SUELO_Y - b.h) {
+          b.y = SUELO_Y - b.h; cambiarFase('suelo');
+          polvo(b.x + b.w / 2, SUELO_Y, nivel.colorPolvo);
+          Sonido.efecto('derrumbe');
+        }
+        break;
+      case 'suelo': // aturdido, se tambalea hacia el jugador
+        b.x = limitar(b.x + b.mira * 18 * dt, arena.x0 + 4, arena.x1 - b.w - 4);
+        if (b.t > dif.aturdida / rabia()) cambiarFase('subida');
+        break;
+      case 'herida':
+        if (b.t > .7) {
+          if (b.vida <= 0) { // al vencerlo, sus disparos y perseguidores se deshacen en chispas
+            for (const o of proyectiles) polvo(o.x, o.y, o.color);
+            proyectiles.length = 0;
+            empezarHuida();
+          } else cambiarFase('subida');
+        }
+        break;
+      case 'subida':
+        b.y += ((66 - b.h) - b.y) * Math.min(1, dt * 3);
+        if (b.t > .9) cambiarFase('vuelo');
+        break;
+      case 'huida':
+        b.x += b.vxHuida * dt;
+        b.vy += cfg.huida.g * dt;
+        b.y += b.vy * dt;
+        if (cfg.huida.g && !b.salpicado && b.vy > 0 && b.y > SUELO_Y - b.h) {  // zambullida en el Bufadero
+          b.salpicado = true;
+          polvo(b.x + b.w / 2, SUELO_Y - 4, '#cfeaf5'); polvo(b.x + b.w / 2, SUELO_Y - 8, '#ffffff');
+          Sonido.efecto('agua');
+        }
+        if (b.t > 2.2) {
+          cambiarFase('vencida');
+          arena.activa = false; proyectiles.length = 0;
+          actualizarBarraJefe(); actualizarHUD(true);
+          mostrarAviso(tr(`jefe.${nivel.jefe}.fin`));
+          Sonido.musica(nivel.musica);
+        }
+        return;
+    }
+
+    // Disparos y perseguidores
+    for (let i = proyectiles.length - 1; i >= 0; i--) {
+      const o = proyectiles[i];
+      o.vida -= dt;
+      if (o.persigue) {
+        const dx = centroJ - o.x, dy = p.y + p.h / 2 - o.y, d = Math.hypot(dx, dy) || 1;
+        o.vx += (dx / d) * 90 * dt; o.vy += (dy / d) * 90 * dt;
+        const v = Math.hypot(o.vx, o.vy), max = dif.velEspiritu;
+        if (v > max) { o.vx *= max / v; o.vy *= max / v; }
+      }
+      if (o.corre) { // las cabras corren por el suelo hacia el jugador; hay que saltarlas
+        const max = dif.velEspiritu * 1.3;
+        o.vx = limitar(o.vx + Math.sign(centroJ - o.x) * 140 * dt, -max, max);
+        o.x = limitar(o.x, arena.x0 + 4, arena.x1 - 4);
+      }
+      if (o.g) o.vy += o.g * dt;
+      o.x += o.vx * dt; o.y += o.vy * dt;
+      if (o.rompe && o.y > SUELO_Y - 3) { o.vida = 0; polvo(o.x, SUELO_Y - 2, o.color); }
+      if (o.vida > 0 && Math.abs(o.x - centroJ) < o.r + 4 && Math.abs(o.y - (p.y + p.h / 2)) < o.r + 6) {
+        o.vida = 0;
+        herir(Math.sign(o.vx) || 1);
+        if (b.fase === 'espera') return; // el combate se ha reiniciado
+      }
+      if (o.vida <= 0) proyectiles.splice(i, 1);
+    }
+
+    // Contacto con el jefe
+    if (b.fase !== 'herida' && b.fase !== 'subida' && solapan(p, b)) {
+      const pisa = p.vy > 0 && p.y + p.h - b.y < 9;
+      if (b.fase === 'suelo' && pisa) {
+        b.vida--; p.vy = -260;
+        cambiarFase('herida');
+        polvo(b.x + b.w / 2, b.y, cfg.colorGolpe);
+        Sonido.efecto('pisar');
+        actualizarBarraJefe();
+      } else {
+        herir(Math.sign(centroJ - (b.x + b.w / 2)) || 1);
+      }
+    }
+  }
+
+  /* =========================================================
+     6. FONDOS PRERRENDERIZADOS (paralaje)
+     Cada capa mide 640 px y se repite sin cortes.
+     ========================================================= */
+  function aleatorio(semilla) { // generador con semilla (mulberry32)
+    return () => {
+      semilla |= 0; semilla = (semilla + 0x6D2B79F5) | 0;
+      let t = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function circuloPx(ctx, cx, cy, r, color) { // círculo con bordes de píxel
+    ctx.fillStyle = color;
+    for (let dy = -r; dy <= r; dy++) {
+      const dx = Math.floor(Math.sqrt(r * r - dy * dy));
+      ctx.fillRect(Math.round(cx - dx), Math.round(cy + dy), dx * 2 + 1, 1);
+    }
+  }
+
+  // Crestas onduladas que se repiten cada 640 px (montañas y lomas)
+  function crestas(ctx, lista) {
+    for (const cr of lista) {
+      ctx.fillStyle = cr.color;
+      for (let x = 0; x < 640; x++) {
+        let y = cr.base;
+        for (const [k, a, fase] of cr.ondas) y += a * Math.sin((2 * Math.PI * k * x) / 640 + fase);
+        ctx.fillRect(x, Math.round(y), 1, H);
+      }
+    }
+  }
+
+  // Parte 1: cumbres del interior de la isla
+  const capaMontes = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    crestas(c.getContext('2d'), [
+      { base: 84, color: '#a8bcc6', ondas: [[1, 16, .3], [3, 8, 1.1], [7, 4, 2]] },
+      { base: 104, color: '#8b9c7f', ondas: [[2, 12, .7], [5, 6, 2.4], [11, 3, .5]] }
+    ]);
+    return c;
+  })();
+
+  // Parte 1: casas canarias del casco, de cal y colores tierra, con carpintería verde y de tea
+  const capaCasas = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    const rnd = aleatorio(7);
+    const muros = ['#efe6d4', '#e9c98f', '#d98a5f', '#bcd0d4', '#f2dcb0', '#e6e0d2'];
+    const maderas = ['#3f6b4a', '#6b3f22', '#3f5f6b'];
+    const base = 150;
+    let x = 0;
+    while (x < 640) {
+      let w = 40 + Math.floor(rnd() * 32);
+      if (640 - x - w < 40) w = 640 - x;      // la última casa cierra el ciclo
+      const h = 34 + Math.floor(rnd() * 30);
+      const arriba = base - h;
+      ctx.fillStyle = muros[Math.floor(rnd() * muros.length)];
+      ctx.fillRect(x, arriba, w, h);
+      ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(x + w - 2, arriba, 2, h);
+      if (rnd() < .5) { // tejado de teja
+        ctx.fillStyle = '#a8503a';
+        for (let i = 0; i < 6; i++) ctx.fillRect(x + (5 - i) * 2 - 1, arriba - 6 + i, w + 2 - (5 - i) * 4, 1);
+      } else {          // azotea con pretil
+        ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(x, arriba - 3, w, 3);
+      }
+      const madera = maderas[Math.floor(rnd() * maderas.length)];
+      ctx.fillStyle = madera;
+      const n = Math.max(1, Math.floor((w - 8) / 14));
+      const sep = w / n;
+      for (let i = 0; i < n; i++) {
+        const vx = Math.round(x + sep * i + sep / 2 - 3);
+        ctx.fillRect(vx, arriba + 8, 6, 9);
+        if (h > 50) ctx.fillRect(vx, arriba + 26, 6, 9);
+      }
+      ctx.fillRect(Math.round(x + w / 2 - 4), base - 14, 8, 14); // puerta
+      x += w;
+    }
+    // Neblina para dar profundidad
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(205,228,238,.3)';
+    ctx.fillRect(0, 0, 640, H);
+    return c;
+  })();
+
+  // Parte 2: cabos lejanos de la costa este, con casitas blancas
+  const HORIZONTE = 100;
+  const capaCosta = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    const rnd = aleatorio(21);
+    const cabos = [[30, 150, 9], [280, 150, 15], [500, 80, 6]]; // x, anchura, altura
+    const alturaCabo = (ancho, alto, x) => Math.round(alto * Math.pow(Math.sin(Math.PI * x / ancho), .6));
+    ctx.fillStyle = '#7f8f96';
+    for (const [x0, ancho, alto] of cabos)
+      for (let x = 0; x < ancho; x++) { const y = alturaCabo(ancho, alto, x); ctx.fillRect(x0 + x, HORIZONTE - y, 1, y); }
+    ctx.fillStyle = '#eef1ee';
+    for (const [x0, ancho, alto] of cabos) {
+      if (alto < 10) continue;
+      for (let x = Math.round(ancho * .2); x < ancho * .8; x += 7) {
+        const y = alturaCabo(ancho, alto, x);
+        ctx.fillRect(x0 + x, HORIZONTE - y + 1, 4, 2 + Math.floor(rnd() * 2));
+      }
+    }
+    return c;
+  })();
+
+  // Parte 3: llanura costera y mar a lo lejos, vistos desde la montaña
+  const capaLlano = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#6fa8c8'; ctx.fillRect(0, 70, 640, 8);         // franja de mar
+    ctx.fillStyle = '#9fc6da'; ctx.fillRect(0, 70, 640, 1);
+    crestas(ctx, [{ base: 80, color: '#cdb78f', ondas: [[2, 3, .4], [5, 2, 1.7]] }]);  // llano
+    const rnd = aleatorio(33);
+    ctx.fillStyle = '#e9e2d2';                                       // pueblos blancos
+    for (let i = 0; i < 26; i++) ctx.fillRect(Math.floor(rnd() * 636), 82 + Math.floor(rnd() * 10), 3, 2);
+    return c;
+  })();
+
+  // Parte 3: lomas rojizas de toba con cuevas excavadas
+  const capaLomas = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    crestas(ctx, [
+      { base: 98, color: '#c99a6c', ondas: [[1, 12, .9], [3, 6, .2], [9, 2, 1.3]] },
+      { base: 116, color: '#b37a50', ondas: [[2, 10, 2.1], [4, 5, .6], [13, 2, 0]] }
+    ]);
+    const rnd = aleatorio(9);
+    ctx.fillStyle = '#4a2a1c';                                       // bocas de cuevas
+    for (let i = 0; i < 9; i++) {
+      const x = Math.floor(rnd() * 620) + 6, y = 118 + Math.floor(rnd() * 14);
+      circuloPx(ctx, x + 3, y, 3, '#4a2a1c'); ctx.fillStyle = '#4a2a1c'; ctx.fillRect(x, y, 7, 5);
+    }
+    return c;
+  })();
+
+  // Parte 4: laderas del barranco con palmerales y casitas blancas
+  const capaBarranco = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    const lomas = [
+      { base: 96, color: '#a08a74', ondas: [[1, 14, 2.2], [3, 6, .4], [8, 2, 1.1]] },
+      { base: 116, color: '#7f6c5c', ondas: [[2, 9, .8], [5, 4, 2.6], [12, 2, .3]] }
+    ];
+    crestas(ctx, lomas);
+    const rnd = aleatorio(44);
+    ctx.fillStyle = '#e6e0d2';
+    for (let i = 0; i < 14; i++) ctx.fillRect(Math.floor(rnd() * 636), 100 + Math.floor(rnd() * 8), 3, 2);
+    // Palmeras sobre la loma cercana
+    const alturaLoma = x => {
+      let y = lomas[1].base;
+      for (const [k, a, f] of lomas[1].ondas) y += a * Math.sin((2 * Math.PI * k * x) / 640 + f);
+      return Math.round(y);
+    };
+    for (let i = 0; i < 22; i++) {
+      const x = Math.floor(rnd() * 630) + 5, base = alturaLoma(x) + 2, alto = 10 + Math.floor(rnd() * 9);
+      ctx.fillStyle = '#4a3e30'; ctx.fillRect(x, base - alto, 1, alto);
+      ctx.fillStyle = '#3f5a34';
+      ctx.fillRect(x - 4, base - alto, 9, 1); ctx.fillRect(x - 3, base - alto - 1, 7, 1);
+      ctx.fillRect(x - 5, base - alto + 1, 2, 1); ctx.fillRect(x + 4, base - alto + 1, 2, 1);
+    }
+    return c;
+  })();
+
+  const nubes = [[20, 18, 34], [140, 30, 24], [230, 12, 40], [400, 26, 30], [520, 16, 22]];
+
+  /* =========================================================
+     7. DIBUJO
+     ========================================================= */
+  function capaRepetida(img, factor) {
+    const off = -Math.round((estado.camX * factor) % 640);
+    g.drawImage(img, off, 0); g.drawImage(img, off + 640, 0);
+  }
+
+  function dibujarNubes() {
+    g.fillStyle = '#ffffff';
+    for (const [nx, ny, nw] of nubes) {
+      const x = Math.round(((nx - estado.camX * .05 - estado.reloj * 3) % 700 + 700) % 700 - 60);
+      g.fillRect(x, ny, nw, 5); g.fillRect(x + 5, ny - 3, nw - 12, 3); g.fillRect(x + 3, ny + 5, nw - 6, 2);
+    }
+  }
+
+  function dibujarPuntoControl(f, camX) {
+    if (nivel.puntoControl === 'hoguera') dibujarHoguera(f, camX);
+    else dibujarFarol(f, camX);
+  }
+
+  function dibujarFarol(f, camX) {
+    const x = Math.round(f.x - camX);
+    if (f.encendido) { g.globalAlpha = .25; circuloPx(g, x + 1, 104, 10, '#ffd66b'); g.globalAlpha = 1; }
+    g.fillStyle = '#1f1c1c';
+    g.fillRect(x, 108, 2, SUELO_Y - 108); g.fillRect(x - 2, SUELO_Y - 2, 6, 2);
+    g.fillRect(x - 3, 99, 8, 10); g.fillRect(x - 1, 97, 4, 2);
+    g.fillStyle = f.encendido ? '#ffd66b' : '#5b6670';
+    g.fillRect(x - 2, 101, 6, 6);
+  }
+
+  // Hoguera de piedras: se enciende al pasar
+  function dibujarHoguera(f, camX) {
+    const x = Math.round(f.x - camX);
+    g.fillStyle = '#6a5a4e';
+    for (const dx of [-6, -3, 1, 4]) g.fillRect(x + dx, SUELO_Y - 3, 3, 3);
+    g.fillStyle = '#5a3a24'; g.fillRect(x - 4, SUELO_Y - 5, 9, 2);       // leña
+    if (f.encendido) {
+      g.globalAlpha = .22; circuloPx(g, x + 1, SUELO_Y - 10, 12, '#ffb84a'); g.globalAlpha = 1;
+      const a = Math.floor(estado.reloj * 10);
+      g.fillStyle = '#e8562a'; g.fillRect(x - 3, SUELO_Y - 11 + (a % 2), 7, 6);
+      g.fillStyle = '#ffb84a'; g.fillRect(x - 1, SUELO_Y - 14 + ((a + 1) % 2), 4, 8);
+      g.fillStyle = '#fff1b0'; g.fillRect(x, SUELO_Y - 9, 2, 3);
+    } else {
+      g.fillStyle = 'rgba(200,190,180,.5)';
+      g.fillRect(x + Math.round(Math.sin(estado.reloj * 2) * 2), SUELO_Y - 12, 2, 5);
+    }
+  }
+
+  function ruido(c, f, n) { return ((c * 73856093) ^ (f * 19349663) ^ (n * 83492791)) >>> 0; }
+
+  // Bordes oscuros donde una casilla sólida da al vacío
+  function bordes(x, y, c, f, color) {
+    g.fillStyle = color;
+    if (casilla(c - 1, f) === VACIO) g.fillRect(x, y, 1, T);
+    if (casilla(c + 1, f) === VACIO) g.fillRect(x + T - 1, y, 1, T);
+  }
+
+  /* ----- 7a. Parte 1: casco de San Juan ----- */
+  function dibujarFondoPlaza() {
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#6fb6e3'); grad.addColorStop(.7, '#cfe9f3');
+    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+    circuloPx(g, 262, 30, 11, '#fff3c4');
+    dibujarNubes();
+    capaRepetida(capaMontes, .1);
+    capaRepetida(capaCasas, .35);
+  }
+
+  function dibujarDecoracionPlaza(camX) {
+    for (const casa of nivel.casas) dibujarCasa(casa, camX);
+    dibujarVentanasBalcon(camX);
+    if (BASILICA_X - camX < W && BASILICA_X + 180 - camX > 0) dibujarBasilica(camX);
+    for (const lx of nivel.laureles) if (lx - camX > -50 && lx - camX < W + 50) dibujarLaurel(Math.round(lx - camX));
+  }
+
+  function dibujarCasa(casa, camX) {
+    const x = casa.c0 * T - camX, ancho = (casa.c1 - casa.c0 + 1) * T, y = casa.techo * T;
+    g.fillStyle = casa.muro; g.fillRect(x, y, ancho, SUELO_Y - y);
+    g.fillStyle = casa.remate; g.fillRect(x - 2, y - 4, ancho + 4, 4); // cornisa
+    g.fillRect(x, SUELO_Y - 6, ancho, 6);                            // zócalo
+    g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(x + ancho - 3, y, 3, SUELO_Y - y);
+    // Puerta de madera
+    g.fillStyle = '#5a2f1c'; g.fillRect(x + 14, SUELO_Y - 26, 14, 26);
+    g.fillStyle = '#7a4a28'; g.fillRect(x + 15, SUELO_Y - 25, 5, 24); g.fillRect(x + 22, SUELO_Y - 25, 5, 24);
+  }
+
+  function dibujarVentanasBalcon(camX) {
+    for (const b of nivel.plataformas) {
+      const x = b.c0 * T - camX + 6, ancho = (b.c1 - b.c0 + 1) * T - 12, y = (b.f - 2) * T + 4;
+      g.fillStyle = '#2f5a3e'; g.fillRect(x, y, ancho, T * 2 - 4);
+      g.fillStyle = '#3f7a52';
+      for (let vx = x + 2; vx < x + ancho - 2; vx += 8) g.fillRect(vx, y + 2, 5, T * 2 - 8);
+    }
+  }
+
+  function dibujarLaurel(x) {
+    g.fillStyle = '#5b4a3c'; g.fillRect(x - 3, 100, 6, SUELO_Y - 100); g.fillRect(x - 6, SUELO_Y - 3, 12, 3);
+    const copa = [[0, 76, 22], [-17, 88, 16], [17, 88, 16], [-9, 64, 14], [10, 62, 14]];
+    for (const [dx, cy, r] of copa) circuloPx(g, x + dx, cy, r, '#2d5232');
+    for (const [dx, cy, r] of copa) circuloPx(g, x + dx - 2, cy - 3, r - 5, '#3f6e3c');
+    for (const [dx, cy, r] of copa) circuloPx(g, x + dx - 4, cy - 6, Math.max(2, r - 12), '#5a8a4a');
+  }
+
+  // Basílica de San Juan Bautista: nave encalada entre dos torres de cantería
+  function dibujarBasilica(camX) {
+    const o = Math.round(BASILICA_X - camX), s = SUELO_Y;
+    const piedra = '#6e6862', piedraOsc = '#55504b', cal = '#efe8da', hueco = '#231a16';
+
+    // Nave y frontón
+    g.fillStyle = cal; g.fillRect(o + 32, 56, 112, s - 56);
+    for (let i = 0; i < 20; i++) { const hw = Math.round((i + 1) * 2.8); g.fillRect(o + 88 - hw, 36 + i, hw * 2, 1); }
+    g.fillStyle = piedra;
+    g.fillRect(o + 30, 54, 116, 3);
+    g.fillRect(o + 70, 57, 3, s - 57); g.fillRect(o + 103, 57, 3, s - 57);
+    g.fillRect(o + 87, 24, 2, 12); g.fillRect(o + 84, 27, 8, 2);          // cruz
+    // Rosetón
+    circuloPx(g, o + 88, 78, 11, piedra);
+    circuloPx(g, o + 88, 78, 8, '#2f4a6b');
+    g.fillStyle = '#c9a54a'; g.fillRect(o + 80, 78, 17, 1); g.fillRect(o + 88, 70, 1, 17);
+    circuloPx(g, o + 88, 78, 2, '#c9a54a');
+    // Ventanas laterales
+    for (const vx of [o + 48, o + 120]) { circuloPx(g, vx + 4, 78, 4, hueco); g.fillStyle = hueco; g.fillRect(vx, 78, 9, 14); }
+    // Portada (meta)
+    circuloPx(g, o + 88, 112, 14, piedra); g.fillStyle = piedra; g.fillRect(o + 74, 112, 29, s - 112);
+    circuloPx(g, o + 88, 114, 10, hueco); g.fillStyle = hueco; g.fillRect(o + 78, 114, 21, s - 114);
+    if (jefe.fase === 'vencida') {
+      // Puerta abierta: interior iluminado por velas
+      g.fillStyle = '#3a2414'; g.fillRect(o + 80, 116, 17, s - 116);
+      g.fillStyle = '#ffcf6b';
+      for (const [vx, vy] of [[83, 128], [88, 124], [93, 128]]) g.fillRect(o + vx, vy, 1, 2);
+    } else {
+      // Puerta cerrada: dos hojas de madera con clavos de hierro
+      g.fillStyle = '#6b3a20'; g.fillRect(o + 79, 115, 9, s - 115); g.fillRect(o + 89, 115, 9, s - 115);
+      g.fillStyle = '#2a1d17';
+      for (let y = 120; y < s - 2; y += 6) { g.fillRect(o + 83, y, 1, 1); g.fillRect(o + 93, y, 1, 1); }
+    }
+    g.fillStyle = '#9b917f'; g.fillRect(o + 68, s - 3, 41, 3);              // escalón
+
+    // Torres
+    for (const tx of [o, o + 144]) {
+      g.fillStyle = piedra; g.fillRect(tx, 48, 32, s - 48);
+      g.fillStyle = piedraOsc;
+      for (let y = 56, n = 0; y < s; y += 8, n++) {
+        g.fillRect(tx, y, 32, 1);
+        g.fillRect(tx + (n % 2 ? 8 : 16), y - 7, 1, 7); g.fillRect(tx + (n % 2 ? 24 : 4), y - 7, 1, 7);
+      }
+      // Campanario
+      for (const ax of [tx + 6, tx + 18]) { circuloPx(g, ax + 4, 60, 4, hueco); g.fillStyle = hueco; g.fillRect(ax, 60, 9, 12); }
+      circuloPx(g, tx + 10, 66, 2, '#c9a54a');
+      // Cornisa, pináculos y chapitel
+      g.fillStyle = '#857e76'; g.fillRect(tx - 2, 45, 36, 3);
+      g.fillStyle = piedraOsc;
+      g.fillRect(tx - 1, 36, 4, 9); g.fillRect(tx + 29, 36, 4, 9);
+      g.fillRect(tx, 32, 2, 4); g.fillRect(tx + 30, 32, 2, 4);
+      for (let i = 0; i < 39; i++) { const hw = Math.max(1, Math.round((i / 38) * 13)); g.fillRect(tx + 16 - hw, 6 + i, hw * 2, 1); }
+      g.fillRect(tx + 15, 0, 2, 7); g.fillRect(tx + 13, 2, 6, 1);
+    }
+  }
+
+  function dibujarSolidoPlaza(x, y, c, f) {
+    const superficie = casilla(c, f - 1) !== SOLIDO;
+    if (f >= 9 && superficie) {
+      // Losas de cantería de la plaza
+      g.fillStyle = '#b8a68a'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#d6c6a8'; g.fillRect(x, y, T, 2);
+      g.fillStyle = '#8f7f66'; g.fillRect(x, y + 8, T, 1); g.fillRect(x + (c % 2 ? 0 : 8), y + 2, 1, 6); g.fillRect(x + (c % 2 ? 8 : 0), y + 9, 1, 7);
+    } else if (f >= 9) {
+      // Subsuelo de basalto
+      g.fillStyle = '#3a3533'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#4a4441';
+      for (let i = 0; i < 3; i++) { const r = ruido(c, f, i); g.fillRect(x + r % 14, y + (r >> 4) % 14, 2, 2); }
+    } else {
+      // Muros y piedras de basalto
+      g.fillStyle = '#575150'; g.fillRect(x, y, T, T);
+      g.fillStyle = superficie ? '#7a726d' : '#575150'; g.fillRect(x, y, T, 2);
+      g.fillStyle = '#36302f'; g.fillRect(x, y + 8, T, 1); g.fillRect(x + (c % 2 ? 4 : 11), y, 1, 8); g.fillRect(x + (c % 2 ? 11 : 4), y + 9, 1, 7);
+    }
+    bordes(x, y, c, f, '#2a2524');
+  }
+
+  function dibujarBalcon(x, y) {
+    // Balcón canario de madera: baranda con balaustres, suelo y canes
+    g.fillStyle = '#5c3519';
+    for (let i = 0; i < 4; i++) g.fillRect(x + 1 + i * 4, y - 8, 2, 8);
+    g.fillRect(x + 6, y + 4, 3, 3);
+    g.fillStyle = '#7a4a28'; g.fillRect(x, y - 10, T, 2); g.fillRect(x, y, T, 4);
+    g.fillStyle = '#9a6338'; g.fillRect(x, y, T, 1);
+  }
+
+  /* ----- 7b. Parte 2: playa de La Garita ----- */
+  function dibujarFondoGarita() {
+    // Cielo de mañana: en la costa este el sol sale por el mar
+    const cielo = g.createLinearGradient(0, 0, 0, HORIZONTE);
+    cielo.addColorStop(0, '#5fb0e0'); cielo.addColorStop(1, '#f3e2c4');
+    g.fillStyle = cielo; g.fillRect(0, 0, W, HORIZONTE);
+    circuloPx(g, 70, 46, 13, '#fff0c0');
+    dibujarNubes();
+    capaRepetida(capaCosta, .12);
+    // Mar abierto
+    const mar = g.createLinearGradient(0, HORIZONTE, 0, H);
+    mar.addColorStop(0, '#3d8fb8'); mar.addColorStop(1, '#1d5f86');
+    g.fillStyle = mar; g.fillRect(0, HORIZONTE, W, H - HORIZONTE);
+    // Reflejo del sol
+    g.fillStyle = 'rgba(255,240,200,.55)';
+    for (let i = 0; i < 6; i++) {
+      const w = 18 - i * 2 + Math.round(Math.sin(estado.reloj * 2 + i) * 3);
+      g.fillRect(Math.round(70 - w / 2), HORIZONTE + 3 + i * 5, w, 1);
+    }
+    // Brillos de las olas, más rápidos cuanto más cerca
+    g.fillStyle = 'rgba(255,255,255,.35)';
+    for (let i = 0; i < 14; i++) {
+      const fila = i % 5;
+      const x = Math.round(((i * 53 - estado.camX * (.2 + fila * .06) + estado.reloj * 6) % 340 + 340) % 340) - 10;
+      g.fillRect(x, HORIZONTE + 6 + fila * 8, 6 + fila, 1);
+    }
+  }
+
+  function dibujarDecoracionGarita(camX) {
+    for (const bx of nivel.barcas) if (bx - camX > -50 && bx - camX < W) dibujarBarca(Math.round(bx - camX), '#2f5f86', false);
+    if (BUFA_CX - camX > -60 && BUFA_CX - camX < W + 60) dibujarRocaBufadero(camX);
+    for (const px of nivel.palmeras) if (px - camX > -40 && px - camX < W + 40) dibujarPalmera(Math.round(px - camX), 64 + (px / T) % 3 * 6, (px / T) % 2 ? 1 : -1);
+    if (BARCA_X - camX < W && BARCA_X - camX > -50) dibujarBarca(Math.round(BARCA_X - camX), '#c4552f', true);
+  }
+
+  // Palmera canaria: tronco grueso con escamas y copa de hojas largas
+  function dibujarPalmera(x, alto, inclina, meneo = 0) {   // meneo: cuánto mueve el viento las hojas
+    for (let i = 0; i < alto; i++) {
+      const dx = Math.round(inclina * Math.pow(i / alto, 2) * 8);
+      g.fillStyle = i % 4 < 2 ? '#7a5a3a' : '#6a4c30';
+      g.fillRect(x + dx - 3, SUELO_Y - i, 6, 1);
+    }
+    const cx = x + inclina * 8, cy = SUELO_Y - alto;
+    const hojas = [[-1, -.3], [-.8, .2], [-.4, -.6], [0, -.8], [.4, -.6], [.8, .2], [1, -.3]];
+    for (const [hx, hy] of hojas) {
+      for (let s = 0; s < 22; s++) {
+        const t = s / 22;
+        g.fillStyle = s % 3 ? '#2f6b3a' : '#3f8a48';
+        const viento = meneo * Math.sin(estado.reloj * 1.6 + hx * 2) * t * 4;
+        g.fillRect(Math.round(cx + hx * s * 1.1 + viento), Math.round(cy + hy * s * .9 + t * t * 14 - Math.abs(viento) * .3), 2, 2);
+      }
+    }
+    g.fillStyle = '#d98a2f'; g.fillRect(cx - 3, cy + 2, 2, 2); g.fillRect(cx + 1, cy + 3, 2, 2); // dátiles
+  }
+
+  // Barca de pesca varada en la arena; la de la meta tiene mástil y bandera
+  function dibujarBarca(x, franja, esMeta) {
+    const y = SUELO_Y;
+    for (let r = 0; r < 11; r++) {
+      const inset = Math.round(Math.pow(r / 10, 1.6) * 9);
+      g.fillStyle = r === 0 ? '#2a3a4a' : (r === 2 || r === 3) ? franja : r >= 9 ? '#8a2f22' : '#f1ebe0';
+      g.fillRect(x + inset, y - 11 + r, 46 - inset * 2, 1);
+    }
+    g.fillStyle = '#f1ebe0'; g.fillRect(x + 43, y - 14, 3, 4);   // proa levantada
+    g.fillStyle = '#2a3a4a'; g.fillRect(x + 43, y - 15, 3, 1);
+    if (!esMeta) return;
+    g.fillStyle = '#6b4a30'; g.fillRect(x + 22, y - 38, 2, 27);
+    if (jefe.fase === 'vencida') {
+      g.fillStyle = '#f2c43d';
+      for (let i = 0; i < 10; i++) g.fillRect(x + 24 + i, y - 37 + Math.round(Math.sin(estado.reloj * 6 + i * .6)), 1, 7);
+    } else {
+      g.fillStyle = '#e6e0d2'; g.fillRect(x + 20, y - 30, 6, 3);  // vela recogida
+    }
+  }
+
+  // El Bufadero: roca volcánica con dos cavidades por donde sale el mar
+  function dibujarRocaBufadero(camX) {
+    const cx = Math.round(BUFA_CX - camX);
+    for (let dx = -36; dx <= 36; dx++) {
+      const k = Math.abs(dx) / 36;
+      const h = Math.round(26 * (1 - k * k) + 3 * Math.sin(dx * .7));
+      g.fillStyle = '#3a3533'; g.fillRect(cx + dx, SUELO_Y - h, 1, h);
+      g.fillStyle = '#4f4845'; g.fillRect(cx + dx, SUELO_Y - h, 1, 2);
+    }
+    g.fillStyle = '#141012';
+    g.fillRect(cx - 7, SUELO_Y - 25, 14, 5);   // cavidad principal (de aquí sale el tritón)
+    g.fillRect(cx - 22, SUELO_Y - 12, 8, 5);   // segunda cavidad
+    g.fillStyle = '#2f6b4f'; g.fillRect(cx - 30, SUELO_Y - 4, 60, 2);  // algas en la base
+    // Fuera del combate, el Bufadero resopla de vez en cuando
+    const fueraDeCombate = jefe.fase === 'espera' || jefe.fase === 'vencida';
+    if (fueraDeCombate && estado.reloj % 4 < .7) {
+      const alto = Math.round(30 * Math.sin((estado.reloj % 4) / .7 * Math.PI));
+      g.globalAlpha = .8; g.fillStyle = '#e8f6fb'; g.fillRect(cx - 3, SUELO_Y - 25 - alto, 6, alto); g.globalAlpha = 1;
+      circuloPx(g, cx, SUELO_Y - 25 - alto, 5, '#ffffff');
+    }
+  }
+
+  // Mar visible en los huecos entre la arena
+  function dibujarAgua(camX) {
+    g.fillStyle = '#1f6a92'; g.fillRect(0, 150, W, H - 150);
+    g.fillStyle = '#cfeaf5';
+    for (let x = 0; x < W; x += 8) {
+      const y = 149 + Math.round(Math.sin((x + estado.reloj * 30 + camX) / 9));
+      g.fillRect(x, y, 5, 1);
+    }
+  }
+
+  function dibujarBufaderos(camX) {
+    const mitad = BUFADERO.ancho / 2;
+    const cuadro = Math.floor(estado.reloj * 15);
+    for (const b of nivel.bufaderos) {
+      const x = Math.round(b.cx - camX);
+      if (x < -40 || x > W + 40) continue;
+      const fase = faseBufadero(b);
+      g.fillStyle = '#123f58'; g.fillRect(x - 8, 151, 16, 2);   // boca del bufadero bajo el agua
+      if (fase === 'aviso') {
+        g.fillStyle = '#e8f6fb';
+        for (let i = 0; i < 5; i++) g.fillRect(x - 6 + (i * 5 + cuadro) % 12, 147 - (cuadro + i * 3) % 5, 2, 2);
+      } else if (fase === 'chorro') {
+        const k = (estado.reloj + b.desfase) % b.periodo - (b.periodo - BUFADERO.duracionChorro);
+        const alto = Math.round(BUFADERO.altura * Math.min(1, k * 6)) + Math.round(Math.sin(estado.reloj * 30) * 2);
+        const arriba = SUELO_Y - alto;
+        g.globalAlpha = .85; g.fillStyle = '#cfeaf5';
+        g.fillRect(x - mitad + 4, arriba, BUFADERO.ancho - 8, 152 - arriba);
+        g.globalAlpha = 1; g.fillStyle = '#ffffff';
+        for (let i = 0; i < 10; i++) {
+          const r = (i * 37 + cuadro * 13) % 97;
+          g.fillRect(x - mitad + 4 + r % (BUFADERO.ancho - 8), arriba + (r * 3) % Math.max(1, 152 - arriba), 2, 2);
+        }
+        circuloPx(g, x, arriba, 7, '#ffffff');
+        circuloPx(g, x - 6, arriba + 3, 4, '#e8f6fb'); circuloPx(g, x + 6, arriba + 3, 4, '#e8f6fb');
+      }
+    }
+  }
+
+  function dibujarSolidoGarita(x, y, c, f) {
+    const superficie = casilla(c, f - 1) !== SOLIDO;
+    if (f >= 9 && superficie) {
+      // Arena volcánica oscura con callaos
+      g.fillStyle = '#4a4342'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#625a57'; g.fillRect(x, y, T, 2);
+      for (let i = 0; i < 4; i++) {
+        const r = ruido(c, f, i);
+        g.fillStyle = i % 2 ? '#6e6562' : '#353030';
+        g.fillRect(x + r % 14, y + 3 + (r >> 5) % 11, 2, 1);
+      }
+    } else if (f >= 9) {
+      // Basalto bajo la arena
+      g.fillStyle = '#2c2827'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#3a3534';
+      for (let i = 0; i < 3; i++) { const r = ruido(c, f, i); g.fillRect(x + r % 14, y + (r >> 4) % 14, 2, 2); }
+    } else {
+      // Roca de lava porosa con algas en lo alto
+      g.fillStyle = '#3f3a3a'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#2a2525';
+      for (let i = 0; i < 4; i++) { const r = ruido(c, f, i + 7); g.fillRect(x + r % 13, y + 3 + (r >> 4) % 11, 2, 2); }
+      if (superficie) {
+        g.fillStyle = '#4f7a3a'; g.fillRect(x, y, T, 2);
+        g.fillRect(x + 3, y + 2, 1, 2); g.fillRect(x + 10, y + 2, 1, 3);
+      }
+    }
+    bordes(x, y, c, f, '#1c1818');
+  }
+
+  // Muelle de madera: tablones con pilotes
+  function dibujarMuelle(x, y) {
+    g.fillStyle = '#5a4030'; g.fillRect(x + 2, y + 4, 2, 7); g.fillRect(x + 12, y + 4, 2, 7);
+    g.fillStyle = '#8a6a4a'; g.fillRect(x, y, T, 4);
+    g.fillStyle = '#a8865e'; g.fillRect(x, y, T, 1);
+    g.fillStyle = '#5a4030'; g.fillRect(x + 7, y, 1, 4);
+  }
+
+  /* ----- 7c. Parte 3: Montaña de Cuatro Puertas ----- */
+  function dibujarFondoCuevas() {
+    const cielo = g.createLinearGradient(0, 0, 0, 80);
+    cielo.addColorStop(0, '#78b9e0'); cielo.addColorStop(1, '#f0dcb4');
+    g.fillStyle = cielo; g.fillRect(0, 0, W, H);
+    circuloPx(g, 240, 28, 10, '#fff3c4');
+    dibujarNubes();
+    capaRepetida(capaLlano, .08);
+    capaRepetida(capaLomas, .3);
+  }
+
+  function dibujarDecoracionCuevas(camX) {
+    if (1716 - camX < W && 2004 - camX > 0) dibujarRisco(camX, PALETA_TOBA);
+    if (CUEVA_X - camX < W) dibujarCuevaCuatroPuertas(camX);
+    for (const tx of nivel.tabaibas) if (tx - camX > -20 && tx - camX < W + 20) dibujarTabaiba(Math.round(tx - camX));
+    for (const cx of nivel.cardones) if (cx - camX > -30 && cx - camX < W + 30) dibujarCardon(Math.round(cx - camX), 30 + (cx / T) % 3 * 6);
+  }
+
+  // Cardón: euforbia en columnas, típica de las laderas secas de la isla
+  function dibujarCardon(x, alto) {
+    const brazos = [[0, alto], [-7, alto - 10], [7, alto - 6], [-13, alto - 20], [13, alto - 16]];
+    for (const [dx, h] of brazos) {
+      g.fillStyle = '#4f7a42'; g.fillRect(x + dx - 2, SUELO_Y - h, 5, h);
+      g.fillStyle = '#6f9a58'; g.fillRect(x + dx - 1, SUELO_Y - h, 1, h);
+      g.fillStyle = '#3a5f32'; g.fillRect(x + dx + 2, SUELO_Y - h, 1, h);
+      g.fillStyle = '#4f7a42'; g.fillRect(x + dx - 1, SUELO_Y - h - 1, 3, 1);
+    }
+  }
+
+  // Tabaiba: arbusto redondeado
+  function dibujarTabaiba(x) {
+    circuloPx(g, x, SUELO_Y - 5, 6, '#6f8a4a');
+    circuloPx(g, x - 2, SUELO_Y - 7, 3, '#8aa85e');
+    g.fillStyle = '#6b5a44'; g.fillRect(x - 1, SUELO_Y - 2, 2, 2);
+  }
+
+  // Colores del risco que hay detrás de las arenas de la parte 3 (toba) y la parte 4 (basalto)
+  const PALETA_TOBA = { pared: '#b97e52', sombra: '#9a6440', capa: 'rgba(120,70,40,.25)', capaBaja: 'rgba(70,35,20,.25)',
+                        junta: 'rgba(70,35,20,.18)', repisa: '#d9a774', borde: '#7a4a2e', cueva: '#3a2216', hornacina: '#5a3420' };
+  const PALETA_BASALTO = { pared: '#6e625a', sombra: '#574c45', capa: 'rgba(30,20,15,.25)', capaBaja: 'rgba(20,12,8,.3)',
+                           junta: 'rgba(20,12,8,.2)', repisa: '#a8968a', borde: '#3f352f', cueva: '#1a1412', hornacina: '#2a221e' };
+
+  // Risco detrás de la arena: repisa alta por donde camina el jefe y pequeñas cuevas
+  function dibujarRisco(camX, pal) {
+    const x0 = Math.round(1716 - camX), x1 = Math.round(2004 - camX);
+    for (let x = x0; x < x1; x++) {
+      const arriba = 26 + Math.round(4 * Math.sin((x + camX) * .07) + 2 * Math.sin((x + camX) * .23));
+      g.fillStyle = pal.pared; g.fillRect(x, arriba, 1, 66 - arriba);   // pared sobre la repisa
+      g.fillStyle = pal.sombra; g.fillRect(x, 70, 1, SUELO_Y - 70);     // pared bajo la repisa, en sombra
+    }
+    for (let y = 34; y < 64; y += 7) { g.fillStyle = pal.capa; g.fillRect(x0, y, x1 - x0, 1); }   // capas de roca
+    for (let y = 78, n = 0; y < SUELO_Y - 4; y += 9, n++) {                                       // capas bajo la repisa
+      g.fillStyle = pal.capaBaja; g.fillRect(x0, y, x1 - x0, 1);
+      g.fillStyle = pal.junta;
+      for (let x = x0 + (n % 2 ? 14 : 30); x < x1; x += 44) g.fillRect(x, y - 8, 1, 8);
+    }
+    g.fillStyle = pal.repisa; g.fillRect(x0, 66, x1 - x0, 2);   // repisa por donde camina el jefe
+    g.fillStyle = pal.borde; g.fillRect(x0, 68, x1 - x0, 2);
+    for (const cx of [40, 120, 210, 260]) {                     // cuevas
+      const x = x0 + cx;
+      circuloPx(g, x + 6, 50, 6, pal.cueva); g.fillStyle = pal.cueva; g.fillRect(x, 50, 13, 16);
+    }
+    for (const cx of [70, 170]) {                               // hornacinas bajo la repisa
+      const x = x0 + cx; g.fillStyle = pal.hornacina; g.fillRect(x, 96, 10, 8);
+    }
+  }
+
+  // Cueva de las Cuatro Puertas: cuatro entradas talladas en la toba que dan a una sola sala
+  function dibujarCuevaCuatroPuertas(camX) {
+    const o = Math.round(CUEVA_X - camX);
+    for (let x = 0; x < 88; x++) {
+      const arriba = 66 + Math.round(6 * Math.sin(x * .09) + 3 * Math.sin(x * .31));
+      g.fillStyle = '#c98a5a'; g.fillRect(o + x, arriba, 1, SUELO_Y - arriba);
+      g.fillStyle = '#a86e44'; g.fillRect(o + x, arriba, 1, 2);
+    }
+    for (let y = 78; y < 108; y += 8) { g.fillStyle = 'rgba(120,70,40,.25)'; g.fillRect(o, y, 88, 1); }
+    const abierta = jefe.fase === 'vencida';
+    for (let i = 0; i < 4; i++) {
+      const x = o + 6 + i * 20;
+      circuloPx(g, x + 7, 114, 7, '#2a1810'); g.fillStyle = '#2a1810'; g.fillRect(x, 114, 15, SUELO_Y - 114);
+      if (abierta) { // dentro se enciende una luz cálida
+        g.globalAlpha = .5 + .2 * Math.sin(estado.reloj * 6 + i);
+        g.fillStyle = '#ffb84a'; g.fillRect(x + 3, 126, 9, SUELO_Y - 126);
+        g.globalAlpha = 1;
+      }
+    }
+    // Agujeros de postes delante de la entrada
+    g.fillStyle = '#7a4a2e';
+    for (let i = 0; i < 9; i++) g.fillRect(o + 4 + i * 10, SUELO_Y - 2, 2, 2);
+  }
+
+  function dibujarSolidoCuevas(x, y, c, f) {
+    const superficie = casilla(c, f - 1) !== SOLIDO;
+    if (f >= 9 && superficie) {
+      // Tierra de toba rojiza con piedrecillas
+      g.fillStyle = '#b8754a'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#d0905e'; g.fillRect(x, y, T, 2);
+      for (let i = 0; i < 4; i++) {
+        const r = ruido(c, f, i);
+        g.fillStyle = i % 2 ? '#8a5232' : '#d9a774';
+        g.fillRect(x + r % 14, y + 3 + (r >> 5) % 11, 2, 1);
+      }
+    } else if (f >= 9) {
+      g.fillStyle = '#7a4a32'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#8a5a3e';
+      for (let i = 0; i < 3; i++) { const r = ruido(c, f, i); g.fillRect(x + r % 14, y + (r >> 4) % 14, 2, 2); }
+    } else {
+      // Bloques de toba en capas
+      g.fillStyle = '#a8683f'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#946038'; g.fillRect(x, y + 5, T, 1); g.fillRect(x, y + 11, T, 1);
+      if (superficie) { g.fillStyle = '#d0905e'; g.fillRect(x, y, T, 2); }
+    }
+    bordes(x, y, c, f, '#5a3420');
+  }
+
+  // Repisa tallada en la toba
+  function dibujarRepisa(x, y) {
+    g.fillStyle = '#c98a5a'; g.fillRect(x, y, T, 5);
+    g.fillStyle = '#e0a874'; g.fillRect(x, y, T, 1);
+    g.fillStyle = '#8a5232'; g.fillRect(x + 1, y + 5, T - 2, 2);
+  }
+
+  // Repisa agrietada: tiembla antes de derrumbarse
+  function dibujarFragil(x, y, fr) {
+    if (fr.estado === 'rota') return;
+    const temblor = fr.estado === 'temblando' ? (Math.floor(estado.reloj * 30) % 2 ? 1 : -1) : 0;
+    x += temblor;
+    g.fillStyle = '#c98a5a'; g.fillRect(x, y, T, 5);
+    g.fillStyle = '#e0a874'; g.fillRect(x, y, T, 1);
+    g.fillStyle = '#6b3a22';                                  // grietas
+    g.fillRect(x + 4, y + 1, 1, 2); g.fillRect(x + 5, y + 3, 1, 2); g.fillRect(x + 11, y + 1, 1, 3); g.fillRect(x + 10, y + 3, 1, 2);
+    g.fillStyle = '#8a5232'; g.fillRect(x + 2, y + 5, 3, 2); g.fillRect(x + 9, y + 5, 4, 2);
+  }
+
+  /* ----- 7d. Parte 4: Barranco Real de Telde ----- */
+  function dibujarFondoBarranco() {
+    // Atardecer: la última parte del viaje
+    const cielo = g.createLinearGradient(0, 0, 0, 110);
+    cielo.addColorStop(0, '#5a6fa8'); cielo.addColorStop(1, '#f2b27a');
+    g.fillStyle = cielo; g.fillRect(0, 0, W, H);
+    circuloPx(g, 250, 70, 14, '#ffd27a');
+    dibujarNubes();
+    capaRepetida(capaMontes, .1);
+    capaRepetida(capaBarranco, .3);
+  }
+
+  function dibujarDecoracionBarranco(camX) {
+    if (1716 - camX < W && 2004 - camX > 0) {
+      dibujarRisco(camX, PALETA_BASALTO);
+      // Cueva del tibicena: antes del combate se le ven los ojos en la oscuridad
+      const cx = Math.round(1866 - camX);
+      circuloPx(g, cx, 44, 12, '#120d0c'); g.fillStyle = '#120d0c'; g.fillRect(cx - 12, 44, 25, 22);
+      if (jefe.fase === 'espera' && Math.floor(estado.reloj * 1.5) % 4) {
+        g.fillStyle = '#ff3a2a'; g.fillRect(cx - 5, 52, 2, 1); g.fillRect(cx + 3, 52, 2, 1);
+      }
+    }
+    if (CUEVA_X - camX < W) dibujarPobladoTara(camX);
+    for (const x of nivel.plataneras) if (x - camX > -30 && x - camX < W + 30) dibujarPlatanera(Math.round(x - camX));
+    for (const x of nivel.palmeras) if (x - camX > -40 && x - camX < W + 40) dibujarPalmera(Math.round(x - camX), 62 + (x / T) % 3 * 6, (x / T) % 2 ? 1 : -1, .5);
+  }
+
+  // Platanera: tallo grueso, hojas grandes y una piña de plátanos
+  function dibujarPlatanera(x) {
+    g.fillStyle = '#7a8a3a'; g.fillRect(x - 2, SUELO_Y - 22, 4, 22);
+    g.fillStyle = '#5f7030'; g.fillRect(x + 1, SUELO_Y - 22, 1, 22);
+    const hojas = [[-1, -.5], [-1, .3], [1, -.6], [1, .2], [-.2, -1]];
+    for (const [hx, hy] of hojas) {
+      for (let s = 0; s < 16; s++) {
+        const t = s / 16;
+        g.fillStyle = s % 4 === 0 ? '#3f7a32' : '#5a9a42';
+        g.fillRect(Math.round(x + hx * s * 1.2), Math.round(SUELO_Y - 24 + hy * s * .8 + t * t * 8), 2, 3);
+      }
+    }
+    g.fillStyle = '#c8c040'; g.fillRect(x + 2, SUELO_Y - 18, 3, 5);   // piña de plátanos
+    g.fillStyle = '#7a2a4a'; g.fillRect(x + 3, SUELO_Y - 13, 2, 3);   // flor
+  }
+
+  // Poblado de Tara: cuevas excavadas en la ladera y comunicadas entre sí (la meta final)
+  function dibujarPobladoTara(camX) {
+    const o = Math.round(CUEVA_X - camX);
+    for (let x = 0; x < 88; x++) {
+      const arriba = 52 + Math.round(7 * Math.sin(x * .08) + 3 * Math.sin(x * .27));
+      g.fillStyle = '#9a7a5a'; g.fillRect(o + x, arriba, 1, SUELO_Y - arriba);
+      g.fillStyle = '#b8987a'; g.fillRect(o + x, arriba, 1, 2);
+    }
+    for (let y = 70; y < SUELO_Y; y += 9) { g.fillStyle = 'rgba(60,40,25,.22)'; g.fillRect(o, y, 88, 1); }
+    g.fillStyle = '#c4a482';                                   // senderos entre las cuevas
+    g.fillRect(o + 8, 90, 30, 2); g.fillRect(o + 40, 108, 34, 2); g.fillRect(o + 50, 76, 26, 2);
+    const abierta = jefe.fase === 'vencida';
+    const cuevas = [[10, 80, 10], [56, 66, 10], [44, 98, 9], [30, 122, 22]];   // x, y, ancho (la última es la entrada)
+    for (const [cx, cy, an] of cuevas) {
+      circuloPx(g, o + cx + an / 2, cy, Math.floor(an / 2), '#241a14');
+      g.fillStyle = '#241a14'; g.fillRect(o + cx, cy, an, (cy > 110 ? SUELO_Y : cy + 10) - cy);
+      if (abierta) {   // al vencer al tibicena se encienden las hogueras dentro
+        g.globalAlpha = .45 + .2 * Math.sin(estado.reloj * 5 + cx);
+        g.fillStyle = '#ffb84a'; g.fillRect(o + cx + 2, cy + 3, an - 4, 5);
+        g.globalAlpha = 1;
+      }
+    }
+    // Hornacina con una pequeña figura de barro
+    g.fillStyle = '#3a2a20'; g.fillRect(o + 70, 100, 8, 9);
+    g.fillStyle = abierta ? '#d08a5a' : '#8a5a3a';
+    g.fillRect(o + 73, 102, 2, 2); g.fillRect(o + 72, 104, 4, 3); g.fillRect(o + 71, 107, 6, 1);
+    if (abierta) { g.globalAlpha = .3; circuloPx(g, o + 74, 104, 6, '#ffd27a'); g.globalAlpha = 1; }
+  }
+
+  function dibujarSolidoBarranco(x, y, c, f) {
+    const superficie = casilla(c, f - 1) !== SOLIDO;
+    if (f >= 9 && superficie) {
+      // Lecho del barranco: tierra con callaos
+      g.fillStyle = '#7a6a58'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#8f7e6a'; g.fillRect(x, y, T, 2);
+      for (let i = 0; i < 3; i++) {
+        const r = ruido(c, f, i), cx = x + r % 12, cy = y + 3 + (r >> 5) % 9;
+        g.fillStyle = '#a89a8a'; g.fillRect(cx, cy, 3, 2);
+        g.fillStyle = '#c4b8aa'; g.fillRect(cx, cy, 2, 1);
+      }
+    } else if (f >= 9) {
+      g.fillStyle = '#5a4c40'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#6a5a4c';
+      for (let i = 0; i < 3; i++) { const r = ruido(c, f, i); g.fillRect(x + r % 14, y + (r >> 4) % 14, 2, 2); }
+    } else {
+      // Muro de piedra seca
+      g.fillStyle = '#6a6058'; g.fillRect(x, y, T, T);
+      g.fillStyle = '#8a8078';
+      g.fillRect(x + 1, y + 1, 6, 4); g.fillRect(x + 8, y + 1, 7, 5); g.fillRect(x + 1, y + 6, 4, 4);
+      g.fillRect(x + 6, y + 7, 9, 4); g.fillRect(x + 1, y + 11, 7, 4); g.fillRect(x + 9, y + 12, 6, 3);
+      if (superficie) { g.fillStyle = '#a89c90'; g.fillRect(x, y, T, 1); }
+    }
+    bordes(x, y, c, f, '#3a322c');
+  }
+
+  // Acequia: canal de piedra con agua que corre (las rayas claras marcan el sentido)
+  function dibujarAcequia(x, y, dir) {
+    g.fillStyle = '#8a8078'; g.fillRect(x, y, T, 7);
+    g.fillStyle = '#a89c90'; g.fillRect(x, y, T, 1);
+    g.fillStyle = '#3f8fb8'; g.fillRect(x, y + 1, T, 3);
+    g.fillStyle = '#bfe4f2';
+    const desplazamiento = Math.floor(estado.reloj * 30 * dir);
+    for (let i = 0; i < T; i += 6) g.fillRect(x + (((i + desplazamiento) % T) + T) % T, y + 2, 3, 1);
+    g.fillStyle = '#6a6058'; g.fillRect(x + 3, y + 7, 2, 2); g.fillRect(x + 11, y + 7, 2, 2);
+  }
+
+  /* ----- 7e. Súper El Perenquén (supermercado inventado) ----- */
+  function dibujarTienda() {
+    estado.camX = 0;
+    // Pared, zócalo y suelo de baldosas
+    g.fillStyle = '#eef2ea'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#d6dfd2'; g.fillRect(0, 126, W, 4);
+    for (let y = 130; y < H; y += 8) for (let x = 0; x < W; x += 8) {
+      g.fillStyle = ((x + y) / 8) % 2 ? '#c9d2c4' : '#b6c0b0'; g.fillRect(x, y, 8, 8);
+    }
+    // Rótulo con el logo del perenquén
+    g.fillStyle = '#2f8f8a'; g.fillRect(0, 0, W, 24);
+    g.fillStyle = '#f2c43d'; g.fillRect(0, 24, W, 2);
+    dibujarPerenquen(8, 4);
+    g.fillStyle = '#ffffff'; g.font = '700 12px "Pixelify Sans", "Courier New", monospace'; g.textBaseline = 'middle';
+    g.fillText('SÚPER EL PERENQUÉN', 30, 13);
+    // Fluorescentes
+    g.fillStyle = '#ffffff';
+    for (const lx of [40, 140, 240]) g.fillRect(lx, 30, 40, 2);
+    // Estanterías llenas de productos de aquí
+    dibujarEstanteria(6, 38); dibujarEstanteria(66, 38);
+    // Mostrador, caja registradora y cajera
+    g.fillStyle = '#3a2418'; g.fillRect(156, 76, 8, 3);
+    g.fillStyle = '#c58a62'; g.fillRect(156, 79, 8, 7);
+    g.fillStyle = '#1c1a1e'; g.fillRect(158, 81, 1, 1);
+    g.fillStyle = '#f2c43d'; g.fillRect(154, 86, 12, 18);
+    g.fillStyle = '#2f8f8a'; g.fillRect(138, 104, 60, 26);
+    g.fillStyle = '#257570'; g.fillRect(138, 104, 60, 3);
+    g.fillStyle = '#4a4a50'; g.fillRect(172, 92, 18, 12);
+    g.fillStyle = '#7dff9a'; g.fillRect(175, 94, 10, 3);
+    // Carrito (con lo que se va comprando) y el protagonista
+    dibujarCarrito(98, 114);
+    Object.assign(jugador, { x: 122, y: 130 - jugador.h, enSuelo: true, mira: 1, invuln: 0, paso: 0 });
+    dibujarJugador();
+  }
+
+  // Logo del súper: un perenquén (la salamanquesa canaria) sobre un círculo amarillo
+  function dibujarPerenquen(x, y) {
+    circuloPx(g, x + 7, y + 8, 8, '#f2c43d');
+    g.fillStyle = '#2f6b3a';
+    g.fillRect(x + 6, y + 1, 3, 3);                          // cabeza
+    g.fillRect(x + 6, y + 4, 3, 7);                          // cuerpo
+    g.fillRect(x + 7, y + 11, 1, 4); g.fillRect(x + 8, y + 14, 2, 1);   // cola
+    g.fillRect(x + 3, y + 5, 3, 1); g.fillRect(x + 9, y + 5, 3, 1);     // patas
+    g.fillRect(x + 3, y + 9, 3, 1); g.fillRect(x + 9, y + 9, 3, 1);
+    g.fillRect(x + 3, y + 4, 1, 1); g.fillRect(x + 11, y + 4, 1, 1);
+    g.fillRect(x + 3, y + 10, 1, 1); g.fillRect(x + 11, y + 10, 1, 1);
+  }
+
+  function dibujarEstanteria(ex, ey) {
+    g.fillStyle = '#c8ccd0'; g.fillRect(ex, ey, 56, 88);
+    g.fillStyle = '#a8acb0'; g.fillRect(ex, ey, 2, 88); g.fillRect(ex + 54, ey, 2, 88);
+    for (let k = 0; k < 4; k++) {
+      const base = ey + 20 + k * 21;
+      g.fillStyle = '#8a8e92'; g.fillRect(ex, base, 56, 2);
+      for (let i = 0; i < 6; i++) dibujarProducto(ex + 3 + i * 8.5, base, (k * 3 + i + ex) % 5);
+    }
+  }
+
+  function dibujarProducto(x, base, tipo) {
+    x = Math.round(x);
+    switch (tipo) {
+      case 0: // bolsa de gofio
+        g.fillStyle = '#e8d8b0'; g.fillRect(x, base - 11, 7, 11);
+        g.fillStyle = '#c43a2a'; g.fillRect(x, base - 7, 7, 2); break;
+      case 1: // piña de plátanos
+        g.fillStyle = '#f2d43a'; g.fillRect(x, base - 6, 7, 6);
+        g.fillStyle = '#c8a82a'; g.fillRect(x + 1, base - 6, 1, 6); g.fillRect(x + 4, base - 6, 1, 6);
+        g.fillStyle = '#5a4a2a'; g.fillRect(x + 3, base - 8, 1, 2); break;
+      case 2: // mojo rojo
+        g.fillStyle = '#c43a2a'; g.fillRect(x + 1, base - 8, 5, 8);
+        g.fillStyle = '#e8e0d0'; g.fillRect(x + 1, base - 10, 5, 2); break;
+      case 3: // mojo verde
+        g.fillStyle = '#4a8a3a'; g.fillRect(x + 1, base - 8, 5, 8);
+        g.fillStyle = '#e8e0d0'; g.fillRect(x + 1, base - 10, 5, 2); break;
+      default: // botella de agua
+        g.fillStyle = '#9fd4ea'; g.fillRect(x + 1, base - 11, 5, 11);
+        g.fillStyle = '#2f6f9a'; g.fillRect(x + 2, base - 13, 3, 2); g.fillRect(x + 1, base - 6, 5, 2);
+    }
+  }
+
+  function dibujarCarrito(x, y) {
+    g.fillStyle = '#8a8e92';
+    g.fillRect(x, y, 18, 1); g.fillRect(x, y + 10, 18, 1); g.fillRect(x, y, 1, 11); g.fillRect(x + 17, y, 1, 11);
+    for (let i = 4; i < 17; i += 4) g.fillRect(x + i, y, 1, 11);
+    g.fillRect(x - 4, y - 3, 5, 1); g.fillRect(x, y - 3, 1, 3);       // asa
+    g.fillRect(x + 1, y + 11, 16, 1);
+    g.fillStyle = '#2a2a30'; g.fillRect(x + 2, y + 13, 3, 3); g.fillRect(x + 13, y + 13, 3, 3);
+    // Lo comprado aparece dentro del carrito
+    if (estado.inventario.gofio) { g.fillStyle = '#e8d8b0'; g.fillRect(x + 2, y - 5, 5, 7); g.fillStyle = '#c43a2a'; g.fillRect(x + 2, y - 2, 5, 1); }
+    if (estado.inventario.platanos) { g.fillStyle = '#f2d43a'; g.fillRect(x + 8, y - 2, 6, 4); }
+    if (estado.inventario.mojo) { g.fillStyle = '#c43a2a'; g.fillRect(x + 14, y - 4, 3, 6); }
+  }
+
+  // El Tibicena (de la mitología aborigen de Gran Canaria): un gran perro de pelo negro y ojos rojos
+  function dibujarTibicena(px, fase) {
+    const pelo = '#1e1a1e', brillo = '#3a3238', ojo = '#ff3a2a';
+    const corre = (fase === 'vuelo' || fase === 'entrada') ? Math.floor(estado.reloj * 10) % 2 : 0;
+    const a = fase === 'aviso' ? 2 : 0;            // se agacha antes de saltar
+    const patas = fase === 'picado' ? 2 : 4 - a;   // en el aire recoge las patas
+    px(0, 3 + a, 3, 2, pelo); px(1, 2 + a, 2, 1, brillo);                     // cola
+    px(3, 5 + a, 13, 8, pelo); px(4, 5 + a, 11, 1, brillo);                   // cuerpo
+    px(4, 13 + a, 2, 1, pelo); px(8, 13 + a, 2, 1, pelo); px(12, 13 + a, 2, 1, pelo);   // pelo largo
+    px(15, 1 + a, 7, 7, pelo); px(21, 4 + a, 3, 3, pelo); px(15, 1 + a, 7, 1, brillo);   // cabeza y hocico
+    px(16, -1 + a, 2, 2, pelo); px(19, -1 + a, 2, 2, pelo);                   // orejas
+    g.globalAlpha = .35; px(17, 2 + a, 5, 3, ojo); g.globalAlpha = 1;          // resplandor rojo
+    px(19, 3 + a, 2, 1, ojo);                                                  // ojo
+    px(21, 7 + a, 1, 2, '#e8e0d0');                                            // colmillo
+    px(4 + corre, 13 + a, 2, patas, pelo); px(7 - corre, 13 + a, 2, patas, pelo);
+    px(12 + corre, 13 + a, 2, patas, pelo); px(15 - corre, 13 + a, 2, patas, pelo);
+  }
+
+  function dibujarPlatanos(camX) {
+    for (const o of platanosVuelo) {
+      const x = Math.round(o.x - camX), y = Math.round(o.y), giro = Math.floor(estado.reloj * 12) % 4;
+      g.fillStyle = '#f2d43a';
+      if (giro % 2) { g.fillRect(x - 1, y - 3, 2, 6); g.fillRect(x + 1, y - 3, 1, 1); g.fillRect(x + 1, y + 2, 1, 1); }
+      else { g.fillRect(x - 3, y - 1, 6, 2); g.fillRect(x - 3, y + 1, 1, 1); g.fillRect(x + 2, y + 1, 1, 1); }
+      g.fillStyle = '#5a4a2a'; g.fillRect(x + (giro < 2 ? 2 : -3), y - 1, 1, 1);
+    }
+  }
+
+  /* ----- 7f. Elementos comunes ----- */
+  function dibujarMoneda(m, i) {
+    const anchos = [6, 4, 2, 4];
+    const w = anchos[Math.floor(estado.reloj * 8 + i) % 4];
+    const x = Math.round(m.x - estado.camX - w / 2), y = m.y - 4;
+    g.fillStyle = '#a8701b'; g.fillRect(x, y, w, 8);
+    g.fillStyle = '#f2c43d'; g.fillRect(x + (w > 2 ? 1 : 0), y + 1, Math.max(1, w - 2), 6);
+    if (w === 6) { g.fillStyle = '#fff1b0'; g.fillRect(x + 2, y + 2, 1, 3); }
+  }
+
+  function dibujarJefe(camX) {
+    const b = jefe;
+    if (b.fase === 'espera' || b.fase === 'vencida') return;
+
+    // Sombra en el suelo que avisa de dónde va a caer
+    if (b.fase === 'aviso' || b.fase === 'picado') {
+      const ax = Math.round(b.destinoX - camX);
+      g.fillStyle = 'rgba(40,20,50,.5)';
+      g.fillRect(ax - 1, SUELO_Y - 2, b.w + 2, 2); g.fillRect(ax + 2, SUELO_Y - 3, b.w - 4, 1);
+    }
+    if (b.fase === 'herida' && Math.floor(b.t * 12) % 2) return; // parpadeo al recibir el golpe
+
+    const sx = Math.round(b.x - camX) - 1, sy = Math.round(b.y) - 2;
+    // px() dibuja un rectángulo del sprite (16 de ancho) reflejado según hacia dónde mira
+    const anchoSprite = cfgJefe().ancho || 16;
+    const px = (dx, dy, w, h, color) => {
+      g.fillStyle = color;
+      g.fillRect(b.mira > 0 ? sx + dx : sx + anchoSprite - dx - w, sy + dy, w, h);
+    };
+    cfgJefe().dibujar(px, b.fase, sx, sy);
+
+    // Estrellitas de aturdimiento
+    if (b.fase === 'suelo') {
+      g.fillStyle = '#f2c43d';
+      for (let i = 0; i < 3; i++) {
+        const a = b.t * 5 + i * 2.1;
+        g.fillRect(Math.round(b.x - camX + 7 + Math.cos(a) * 9), Math.round(b.y - 6 + Math.sin(a) * 3), 2, 2);
+      }
+    }
+  }
+
+  // La Bruja del Barranco (personaje inventado)
+  function dibujarBruja(px, fase) {
+    const volando = fase !== 'suelo' && fase !== 'herida';
+    const sombrero = '#2b1f3a', piel = '#cdb8a0', pelo = '#b8b4b0', vestido = '#3b2a4a', manto = '#6b2f3a';
+    // Escoba: debajo al volar, de pie a su lado en el suelo
+    if (volando) { px(-6, 15, 5, 6, '#c9a24a'); px(-2, 17, 21, 2, '#7a4a28'); }
+    else { px(14, 4, 2, 18, '#7a4a28'); px(13, 0, 4, 5, '#c9a24a'); }
+    px(10, 0, 2, 2, sombrero); px(8, 2, 4, 2, sombrero); px(6, 4, 6, 2, sombrero); px(3, 6, 12, 2, sombrero);
+    px(6, 5, 6, 1, '#8a5cc2');
+    px(4, 8, 3, 8, pelo);
+    px(7, 8, 6, 5, piel); px(11, 9, 1, 1, '#7dff9a'); px(13, 10, 1, 2, piel);
+    px(4, 13, 10, 7, vestido); px(3, 13, 11, 3, manto);
+    px(13, 15, 2, 2, piel);
+    px(5, 20, 3, 2, '#141214'); px(10, 20, 3, 2, '#141214');
+  }
+
+  // El Tritón del Bufadero (personaje inventado): cola de pez, barba de algas y tridente
+  function dibujarTriton(px, fase, sx, sy) {
+    g.save();
+    g.beginPath(); g.rect(0, 0, W, SUELO_Y); g.clip();   // nunca se dibuja por debajo de la arena
+
+    // Columna de agua que lo sostiene mientras está en el aire
+    if (fase === 'entrada' || fase === 'vuelo' || fase === 'aviso' || fase === 'subida') {
+      const base = sy + 22, alto = SUELO_Y - base;
+      if (alto > 0) {
+        const cuadro = Math.floor(estado.reloj * 15), wob = Math.round(Math.sin(estado.reloj * 20));
+        g.globalAlpha = .85; g.fillStyle = '#cfeaf5'; g.fillRect(sx + 3 + wob, base, 10, alto); g.globalAlpha = 1;
+        g.fillStyle = '#ffffff';
+        for (let i = 0; i < 6; i++) g.fillRect(sx + 4 + (i * 5 + cuadro) % 8, base + (i * 11 + cuadro * 3) % alto, 2, 2);
+        circuloPx(g, sx + 8, base + 1, 6, '#ffffff');
+        circuloPx(g, sx + 8, SUELO_Y, 8, '#e8f6fb');
+      }
+    }
+
+    const escama = '#2f8f8a', escamaClara = '#5fc4b0', piel = '#8fc9b5', alga = '#2f6b4f', oro = '#f2c43d', aleta = '#9fe0d0';
+    const coletazo = fase === 'suelo' ? Math.round(Math.sin(estado.reloj * 14)) : 0;
+    // Tridente
+    px(14, 1, 1, 22, '#c9a24a'); px(12, 1, 5, 1, oro);
+    px(12, -2, 1, 3, oro); px(14, -3, 1, 4, oro); px(16, -2, 1, 3, oro);
+    // Corona y pelo de algas
+    px(5, 0, 1, 2, oro); px(8, 0, 1, 2, oro); px(11, 0, 1, 2, oro); px(5, 2, 7, 1, oro);
+    px(4, 3, 9, 2, alga); px(3, 4, 2, 7, alga);
+    // Cara
+    px(5, 5, 7, 4, piel); px(10, 6, 1, 1, '#ffe27a');
+    // Torso, brazo que sujeta el tridente y barba
+    px(4, 9, 9, 5, piel); px(12, 10, 2, 2, piel);
+    px(6, 9, 6, 3, alga); px(7, 12, 4, 1, alga);
+    // Cola de escamas y aleta
+    px(5, 14, 8, 3, escama); px(6, 17, 6, 2, escama); px(7, 19, 5, 2, escama); px(9, 21, 4, 1, escama);
+    px(6, 15, 1, 1, escamaClara); px(9, 15, 1, 1, escamaClara); px(7, 17, 1, 1, escamaClara);
+    px(10, 18, 1, 1, escamaClara); px(8, 20, 1, 1, escamaClara);
+    px(11, 21 + coletazo, 4, 1, aleta); px(13, 19 + coletazo, 2, 2, aleta);
+    g.restore();
+  }
+
+  // El Guardián de Cuatro Puertas (personaje inventado): un antiguo canario
+  // con tamarco de piel de cabra y un garrote largo de pastor
+  function dibujarGuardian(px, fase, sx, sy) {
+    const piel = '#b07a52', pelo = '#2a1d17', tamarco = '#8a6a44', tamarcoClaro = '#b8956a', cuero = '#5a4030', garrote = '#7a5a3a';
+
+    // El garrote cambia de posición según lo que hace
+    if (fase === 'subida') {             // lo apoya en el suelo para impulsarse hacia la repisa
+      g.fillStyle = garrote; g.fillRect(sx + 8, sy + 20, 2, Math.max(0, SUELO_Y - sy - 20));
+    } else if (fase === 'aviso' || fase === 'picado') {
+      px(1, -3, 14, 2, garrote);         // en alto, a punto de saltar
+    } else {
+      px(14, -4, 2, 26, garrote);        // de pie, a su lado
+    }
+
+    // Pelo largo y barba
+    px(4, 0, 8, 3, pelo); px(3, 2, 3, 9, pelo);
+    // Cara
+    px(5, 3, 7, 5, piel); px(10, 4, 1, 1, '#1c1a1e'); px(12, 5, 1, 2, piel);
+    px(6, 7, 6, 3, pelo);
+    // Tamarco (prenda de piel de cabra) con cinturón
+    px(4, 10, 9, 8, tamarco); px(4, 14, 9, 1, cuero);
+    px(5, 11, 1, 1, tamarcoClaro); px(8, 12, 1, 1, tamarcoClaro); px(11, 11, 1, 1, tamarcoClaro);
+    px(6, 16, 1, 1, tamarcoClaro); px(10, 16, 1, 1, tamarcoClaro);
+    // Brazos
+    px(12, 10, 2, 5, piel); px(3, 11, 1, 4, piel);
+    // Piernas y calzado de cuero
+    const zancada = fase === 'vuelo' || fase === 'entrada' ? Math.floor(estado.reloj * 8) % 2 : 0;
+    px(5, 18, 2, 3, piel); px(9, 18, 2, 3, piel);
+    px(4 + zancada, 21, 3, 1, cuero); px(9 - zancada, 21, 3, 1, cuero);
+  }
+
+  function dibujarCabra(x, y, mira) {
+    const px = (dx, dy, w, h, color) => { g.fillStyle = color; g.fillRect(mira > 0 ? x - 6 + dx : x + 6 - dx - w, y - 5 + dy, w, h); };
+    const paso = Math.floor(estado.reloj * 12) % 2;
+    px(1, 3, 8, 4, '#e6dccb'); px(3, 3, 3, 2, '#8a6a44');         // cuerpo con mancha
+    px(8, 1, 3, 3, '#e6dccb'); px(10, 2, 1, 1, '#1c1a1e');        // cabeza y ojo
+    px(8, -1, 1, 2, '#5a4a3a'); px(9, -2, 1, 2, '#5a4a3a');       // cuernos
+    px(9, 4, 1, 2, '#d0c4b0');                                     // barbita
+    px(0, 3, 1, 2, '#e6dccb');                                     // rabo
+    px(2 + paso, 7, 1, 3, '#6b5a44'); px(7 - paso, 7, 1, 3, '#6b5a44');
+  }
+
+  function dibujarProyectiles(camX) {
+    for (const o of proyectiles) {
+      const x = Math.round(o.x - camX), y = Math.round(o.y);
+      if (o.tipo === 'fuego') {
+        g.globalAlpha = .35; circuloPx(g, x, y, 5, '#7dff9a'); g.globalAlpha = 1;
+        circuloPx(g, x, y, 3, '#7dff9a'); circuloPx(g, x, y, 1, '#eaffea');
+      } else if (o.tipo === 'caracola') {
+        // Caracola en espiral que gira en el aire
+        const a = estado.reloj * 10;
+        circuloPx(g, x, y, 3, '#e8c9a0');
+        g.fillStyle = '#c47a4a'; g.fillRect(x - 1, y - 1, 2, 1); g.fillRect(x + 1, y, 1, 2); g.fillRect(x - 1, y + 1, 2, 1);
+        g.fillStyle = '#f7d9c4'; g.fillRect(Math.round(x + Math.cos(a) * 4) - 1, Math.round(y + Math.sin(a) * 4) - 1, 2, 2);
+      } else if (o.tipo === 'llama') {
+        g.globalAlpha = .35; circuloPx(g, x, y, 5, '#ff6a3a'); g.globalAlpha = 1;
+        circuloPx(g, x, y, 3, '#ff6a3a'); circuloPx(g, x, y, 1, '#ffd27a');
+      } else if (o.tipo === 'cuervo') {
+        const ala = Math.floor(estado.reloj * 10) % 2;
+        g.fillStyle = '#2a2430'; g.fillRect(x - 2, y - 1, 5, 3); g.fillRect(x + 3, y - 2, 2, 2);
+        if (ala) { g.fillRect(x - 5, y - 4, 4, 2); g.fillRect(x + 1, y - 4, 3, 2); }
+        else { g.fillRect(x - 5, y + 1, 4, 2); g.fillRect(x + 1, y + 1, 3, 2); }
+        g.fillStyle = '#f2c43d'; g.fillRect(x + 5, y - 1, 1, 1);
+      } else if (o.tipo === 'piedra') {
+        circuloPx(g, x, y, 3, '#7a6e64');
+        g.fillStyle = '#a89c90'; g.fillRect(x - 2, y - 2, 2, 1);
+      } else if (o.tipo === 'cabra') {
+        dibujarCabra(x, y, o.vx >= 0 ? 1 : -1);
+      } else if (o.tipo === 'medusa') {
+        g.globalAlpha = .85;
+        g.fillStyle = '#f2a6d0';
+        for (let dy = -4; dy <= 0; dy++) { const dx = Math.floor(Math.sqrt(16 - dy * dy)); g.fillRect(x - dx, y + dy, dx * 2 + 1, 1); }
+        g.fillStyle = '#e07ab4';
+        for (const t of [-3, -1, 1, 3]) g.fillRect(x + t + Math.round(Math.sin(estado.reloj * 8 + t)), y + 1, 1, 4);
+        g.globalAlpha = 1;
+      } else {
+        // Espíritu
+        g.globalAlpha = .85;
+        circuloPx(g, x, y - 1, 4, '#d9ecff');
+        g.fillStyle = '#d9ecff'; g.fillRect(x - 4, y, 9, 4);
+        g.fillRect(x - 4, y + 4, 2, 2); g.fillRect(x, y + 4, 2, 2); g.fillRect(x + 3, y + 4, 2, 2);
+        g.globalAlpha = 1;
+        g.fillStyle = '#2a2140'; g.fillRect(x - 2, y - 2, 1, 2); g.fillRect(x + 1, y - 2, 1, 2);
+      }
+    }
+  }
+
+  function dibujarJugador() {
+    const p = jugador;
+    if (p.invuln > 0 && Math.floor(p.invuln * 10) % 2) return; // parpadeo tras un golpe
+    const sx = Math.round(p.x - estado.camX) - 1, sy = Math.round(p.y) - 2;
+    // px() dibuja un rectángulo del sprite (12×16) reflejado según hacia dónde mira
+    const px = (dx, dy, w, h, color) => {
+      g.fillStyle = color;
+      g.fillRect(p.mira > 0 ? sx + dx : sx + 12 - dx - w, sy + dy, w, h);
+    };
+    const piel = '#e0a77c', pelo = '#2a1d17', camisa = '#2f7fa8', pantalon = '#3a3340', calzado = '#1c1a1e';
+    const fase = Math.floor(p.paso / 6) % 2;
+
+    px(3, 0, 6, 2, pelo); px(2, 1, 2, 3, pelo);
+    px(3, 2, 6, 5, piel); px(7, 3, 1, 2, pelo);            // cara y ojo
+    px(2, 7, 8, 5, camisa); px(2, 7, 8, 1, '#4aa0c8');
+    if (!p.enSuelo) { px(0, 6, 2, 3, piel); px(10, 6, 2, 3, piel); }         // brazos arriba al saltar
+    else { px(1, 8 + fase, 1, 3, piel); px(10, 9 - fase, 1, 3, piel); }
+    px(3, 11, 6, 2, pantalon);
+    if (!p.enSuelo) { px(2, 13, 3, 2, pantalon); px(7, 12, 3, 2, pantalon); px(1, 15, 3, 1, calzado); px(8, 14, 3, 1, calzado); }
+    else if (p.paso > 0) {
+      if (fase) { px(2, 13, 2, 2, pantalon); px(7, 13, 2, 2, pantalon); px(1, 15, 3, 1, calzado); px(7, 15, 3, 1, calzado); }
+      else { px(4, 13, 2, 2, pantalon); px(6, 13, 2, 2, pantalon); px(4, 15, 4, 1, calzado); }
+    } else { px(3, 13, 2, 2, pantalon); px(7, 13, 2, 2, pantalon); px(3, 15, 3, 1, calzado); px(7, 15, 3, 1, calzado); }
+  }
+
+  /* ----- 7g. Portada del menú principal: la playa de La Garita en movimiento ----- */
+  function dibujarPortada() {
+    const t = estado.reloj;
+
+    // Cielo, sol, nubes, cabos lejanos y mar (el fondo avanza despacio)
+    estado.camX = t * 10;
+    dibujarFondoGarita();
+    estado.camX = 0;
+
+    // Una barquita faenando y unas gaviotas
+    dibujarBarquita(Math.round((t * 6) % 420) - 50, 116 + Math.round(Math.sin(t * 2)));
+    g.fillStyle = '#f4f4f0';
+    for (let i = 0; i < 3; i++) {
+      const gx = Math.round((t * (14 + i * 4) + i * 120) % 380) - 30;
+      const gy = 34 + i * 12 + Math.round(Math.sin(t * 1.3 + i) * 4);
+      g.fillRect(gx, gy, 2, 1); g.fillRect(gx + 3, gy, 2, 1); g.fillRect(gx + 2, gy + 1, 1, 1);
+      if (Math.floor(t * 6 + i) % 2) { g.fillRect(gx - 1, gy - 1, 1, 1); g.fillRect(gx + 5, gy - 1, 1, 1); }
+    }
+
+    // Olas que van y vienen sobre la orilla
+    const marea = Math.sin(t * 1.2);
+    for (let fila = 0; fila < 2; fila++) {
+      const y = 134 + fila * 6 + Math.round(marea * (2 + fila));
+      g.fillStyle = fila ? '#ffffff' : 'rgba(255,255,255,.6)';
+      for (let x = 0; x < W; x += 6)
+        if ((x / 6 + Math.floor(t * 3) + fila * 2) % 5) g.fillRect(x, y + Math.round(Math.sin(x * .12 + t * 2)), 5, 1);
+    }
+
+    // Arena volcánica oscura, más oscura donde la ha mojado la ola
+    g.fillStyle = '#4a4342'; g.fillRect(0, SUELO_Y, W, H - SUELO_Y);
+    g.fillStyle = '#3a3433'; g.fillRect(0, SUELO_Y, W, 3 + Math.round((marea + 1) * 2));
+    g.fillStyle = '#625a57'; g.fillRect(0, SUELO_Y, W, 1);
+    for (let i = 0; i < 70; i++) {
+      const r = ruido(i, 3, 1);
+      g.fillStyle = i % 2 ? '#6e6562' : '#353030';
+      g.fillRect(r % W, SUELO_Y + 6 + (r >> 9) % 24, 2, 1);
+    }
+
+    // El Bufadero resoplando, palmeras al viento y alguien paseando por la orilla
+    dibujarRocaBufadero(BUFA_CX - 272);
+    dibujarPalmera(30, 76, 1, 1);
+    dibujarPalmera(56, 60, -1, 1);
+    dibujarPalmera(300, 70, -1, 1);
+    const ida = (t * 22) % 160;
+    Object.assign(jugador, { x: 8 + (ida < 80 ? ida : 160 - ida), y: SUELO_Y - jugador.h, enSuelo: true,
+                             mira: ida < 80 ? 1 : -1, invuln: 0, paso: t * 22 });
+    dibujarJugador();
+  }
+
+  // Barquita de pesca a lo lejos
+  function dibujarBarquita(x, y) {
+    g.fillStyle = '#6b4a30'; g.fillRect(x + 8, y - 9, 1, 9);                     // mástil
+    g.fillStyle = '#f1ebe0';
+    for (let i = 0; i < 6; i++) g.fillRect(x + 9, y - 9 + i, 6 - i, 1);           // vela
+    g.fillRect(x, y, 18, 2); g.fillRect(x + 1, y + 2, 16, 1);                     // casco
+    g.fillStyle = '#2f5f86'; g.fillRect(x, y, 18, 1);
+    g.fillStyle = '#8a2f22'; g.fillRect(x + 2, y + 3, 14, 1);
+  }
+
+  function dibujar() {
+    if (estado.modo === 'menu') { dibujarPortada(); return; }
+    if (estado.modo === 'tienda') { dibujarTienda(); return; }
+    const camX = Math.round(estado.camX);
+
+    // Fondo y decoración propios de cada nivel (detrás del jugador)
+    nivel.dibujarFondo();
+    nivel.dibujarDecoracion(camX);
+    for (const f of faroles) dibujarPuntoControl(f, camX);
+    if (nivel.aguaY !== null) dibujarAgua(camX);
+
+    // Casillas visibles
+    const c0 = Math.floor(camX / T), c1 = Math.min(COLS - 1, c0 + Math.ceil(W / T));
+    for (let f = 0; f < ROWS; f++) for (let c = c0; c <= c1; c++) {
+      const t = nivel.mapa[f][c];
+      if (t === SOLIDO) nivel.dibujarSolido(c * T - camX, f * T, c, f);
+      else if (t === PLATAFORMA) nivel.dibujarPlataforma(c * T - camX, f * T);
+      else if (t === FRAGIL) dibujarFragil(c * T - camX, f * T, nivel.fragiles.get(f * COLS + c));
+      else if (t === ACEQUIA) dibujarAcequia(c * T - camX, f * T, nivel.corrientes.get(f * COLS + c));
+    }
+    if (nivel.bufaderos.length) dibujarBufaderos(camX);
+
+    nivel.monedas.forEach((m, i) => { if (!m.cogida) dibujarMoneda(m, i); });
+    dibujarJefe(camX);
+    for (const c of chispas) { g.fillStyle = c.color || '#fff1b0'; g.fillRect(Math.round(c.x - camX), Math.round(c.y), 2, 2); }
+    dibujarJugador();
+    dibujarProyectiles(camX);
+    dibujarPlatanos(camX);
+  }
+
+  /* =========================================================
+     8. MARCADOR, MENÚS Y PANTALLAS
+     ========================================================= */
+  const $ = id => document.getElementById(id);
+  const hud = {
+    caja: $('hud'),
+    monedas: $('hudMonedas'), tiempo: $('hudTiempo'), caidas: $('hudCaidas'),
+    vida: $('hudVida'), corazones: $('hudCorazones'), objetos: $('hudObjetos')
+  };
+  const textoLugar = $('lugar');
+  const paneles = {
+    menu: $('panelMenu'), como: $('panelComo'), pausa: $('panelPausa'), tienda: $('panelTienda'),
+    intermedio: $('panelIntermedio'), final: $('panelFinal')
+  };
+  let panelActivo = 'menu';
+  const btnSonido = $('btnSonido'), btnPausa = $('btnPausa');
+
+  const formatoTiempo = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+  const cogidasNivel = () => nivel.monedas.filter(m => m.cogida).length;
+  const monedasNivel = () => `${cogidasNivel()}/${nivel.monedas.length}`;
+  const monedasTotales = () => `${estado.monedasPrevias + cogidasNivel()}/${estado.totalPrevias + nivel.monedas.length}`;
+
+  let ultimoHUD = 0;
+  function actualizarHUD(forzar) {
+    if (!forzar && estado.tiempo - ultimoHUD < .1) return;
+    ultimoHUD = estado.tiempo;
+    hud.monedas.textContent = monedasNivel();
+    hud.tiempo.textContent = formatoTiempo(estado.tiempo);
+    hud.caidas.textContent = estado.caidas;
+    hud.vida.hidden = !nivel.arena.activa;
+    const vivos = Math.max(0, jugador.corazones);
+    hud.corazones.textContent = '♥'.repeat(vivos) + '♡'.repeat(Math.max(0, vidasMax() - vivos));
+    // Objetos del súper (solo en la parte que los usa)
+    const conObjetos = Boolean(nivel.tiendaAntes && (estado.inventario.platanos || estado.inventario.mojo));
+    hud.objetos.hidden = !conObjetos;
+    if (conObjetos) {
+      const partes = [];
+      if (estado.inventario.platanos) partes.push(`${tr('hud.platanos')} ${jugador.platanos}`);
+      if (jugador.escudo) partes.push(tr('hud.escudo'));
+      hud.objetos.textContent = partes.join(' · ');
+    }
+  }
+
+  // Barra de vida del jefe (visible solo durante el combate)
+  const barraJefe = $('barraJefe'), vidaJefe = $('vidaJefe'), nombreJefe = $('nombreJefe');
+  function actualizarBarraJefe() {
+    barraJefe.hidden = !nivel.arena.activa;
+    barraJefe.dataset.jefe = nivel.jefe;
+    nombreJefe.textContent = tr(`jefe.${nivel.jefe}.nombre`);
+    vidaJefe.innerHTML = '';
+    for (let i = 0; i < vidaMaxJefe(); i++) {
+      const seg = document.createElement('i');
+      if (i >= jefe.vida) seg.className = 'vacia';
+      vidaJefe.appendChild(seg);
+    }
+  }
+
+  // Mensaje grande y breve en el centro de la pantalla
+  const aviso = $('aviso');
+  let temporizadorAviso = 0;
+  function mostrarAviso(texto) {
+    aviso.textContent = texto; aviso.hidden = false;
+    clearTimeout(temporizadorAviso);
+    temporizadorAviso = setTimeout(() => { aviso.hidden = true; }, 2200);
+  }
+
+  function mostrarPanel(nombre) {
+    panelActivo = nombre;
+    $('marco').classList.toggle('con-panel', Boolean(nombre));
+    for (const [clave, panel] of Object.entries(paneles)) panel.hidden = clave !== nombre;
+  }
+
+  // Cambia de modo (menu, jugando, pausa, intermedio, final) y ajusta lo que depende de él
+  function fijarModo(modo) {
+    estado.modo = modo;
+    hud.caja.hidden = modo === 'menu' || modo === 'tienda';
+    btnPausa.hidden = !(modo === 'jugando' || modo === 'pausa');
+    textoLugar.textContent = textoCabecera();
+  }
+
+  // Texto bajo el título: el lema en el menú, el súper en la tienda o el lugar de la parte actual
+  function textoCabecera() {
+    if (estado.modo === 'menu') return tr('lema');
+    if (estado.modo === 'tienda') return tr('tienda.nombre');
+    return tr(`${nivel.id}.lugar`);
+  }
+
+  // Las flechas mueven el foco entre los botones del panel visible
+  function moverFoco(paso) {
+    const panel = paneles[panelActivo];
+    if (!panel) return;
+    const botones = [...panel.querySelectorAll('button')].filter(b => !b.hidden && !b.disabled);
+    if (!botones.length) return;
+    const i = botones.indexOf(document.activeElement);
+    botones[i < 0 ? 0 : (i + paso + botones.length) % botones.length].focus();
+  }
+
+  /* ----- Ajustes: dificultad, idioma y sonido ----- */
+  function elegirDificultad(clave) {
+    dif = DIFICULTADES[clave];
+    try { localStorage.setItem(CLAVE_GUARDADO, clave); } catch (e) { /* sin almacenamiento */ }
+    pintarMenu();
+  }
+
+  function elegirIdioma(clave) {
+    idioma = clave;
+    try { localStorage.setItem('saltos-telde-idioma', clave); } catch (e) { /* sin almacenamiento */ }
+    aplicarIdioma();
+  }
+
+  function alternarSonido() { Sonido.iniciar(); Sonido.alternarSilencio(); pintarMenu(); }
+  function fijarSonido(activo) { if (activo === Sonido.silencio) alternarSonido(); }
+
+  // Marca las opciones elegidas y actualiza los textos que dependen de ellas
+  function pintarMenu() {
+    const marcar = (selector, elegido) => document.querySelectorAll(selector).forEach(b => {
+      const activo = elegido(b);
+      b.classList.toggle('activo', activo);
+      b.setAttribute('aria-pressed', String(activo));
+    });
+    marcar('[data-dif]', b => b.dataset.dif === dif.clave);
+    marcar('[data-idioma]', b => b.dataset.idioma === idioma);
+    marcar('[data-sonido]', b => (b.dataset.sonido === 'si') === !Sonido.silencio);
+    $('notaDificultad').textContent = tr(`desc.${dif.clave}`);
+    const parte = Math.min(progreso, NIVELES.length - 1);
+    $('btnContinuar').hidden = parte === 0;
+    $('btnContinuar').textContent = tr('continuar', { n: parte + 1 });
+    btnSonido.textContent = tr(Sonido.silencio ? 'sonido.no' : 'sonido.si');
+    btnSonido.setAttribute('aria-pressed', String(!Sonido.silencio));
+  }
+
+  // Rellena todos los elementos con data-t (y data-t-aria) en el idioma elegido
+  function aplicarIdioma() {
+    document.documentElement.lang = idioma;
+    document.querySelectorAll('[data-t]').forEach(el => { el.innerHTML = tr(el.dataset.t); });
+    document.querySelectorAll('[data-t-aria]').forEach(el => el.setAttribute('aria-label', tr(el.dataset.tAria)));
+    textoLugar.textContent = textoCabecera();
+    actualizarBarraJefe();
+    pintarMenu();
+    pintarTienda();
+  }
+
+  /* ----- Flujo de la partida ----- */
+  // Guarda hasta qué parte se ha llegado y con cuántas monedas (para "Continuar")
+  function guardarProgreso(i) {
+    if (i < progreso) return;
+    progreso = i;
+    try {
+      localStorage.setItem('saltos-telde-progreso', String(i));
+      localStorage.setItem('saltos-telde-monedas', String(estado.monedasPrevias));
+    } catch (e) { /* sin almacenamiento */ }
+  }
+
+  function monedasGuardadas() {
+    try { return Math.max(0, parseInt(localStorage.getItem('saltos-telde-monedas'), 10) || 0); } catch (e) { return 0; }
+  }
+
+  function empezar(desde = 0) {
+    Sonido.iniciar();
+    if (document.activeElement) document.activeElement.blur(); // que Espacio no vuelva a pulsar el botón
+    nuevaPartida(desde);
+    if (desde > 0) {   // al continuar se recuperan las monedas con las que se llegó a esa parte
+      estado.totalPrevias = NIVELES.slice(0, desde).reduce((suma, n) => suma + n.monedas.length, 0);
+      estado.monedasPrevias = Math.min(estado.totalPrevias, monedasGuardadas());
+    }
+    if (NIVELES[desde].tiendaAntes) { abrirTienda(desde); return; }
+    mostrarPanel(null);
+    fijarModo('jugando');
+    mostrarAviso(tr(`${nivel.id}.titulo`));
+  }
+
+  function siguienteNivel() {
+    if (estado.modo !== 'intermedio') return;
+    if (document.activeElement) document.activeElement.blur();
+    estado.monedasPrevias += cogidasNivel();
+    estado.totalPrevias += nivel.monedas.length;
+    const destino = indiceNivel + 1;
+    guardarProgreso(destino);
+    if (NIVELES[destino].tiendaAntes) { abrirTienda(destino); return; }
+    cargarNivel(destino);
+    mostrarPanel(null);
+    fijarModo('jugando');
+    mostrarAviso(tr(`${nivel.id}.titulo`));
+  }
+
+  // Se llega a la meta: pantalla intermedia o final, con los textos del nivel
+  function terminar() {
+    actualizarHUD(true);
+    Sonido.musica(null);
+    Sonido.efecto('meta');
+    const id = nivel.id;
+    if (indiceNivel < NIVELES.length - 1) {
+      fijarModo('intermedio');
+      $('intTitulo').textContent = tr(`${id}.fin.titulo`);
+      $('intTexto').innerHTML = tr(`${id}.fin.texto`);
+      $('intSiguiente').textContent = tr(`${id}.fin.siguiente`);
+      $('btnSeguir').textContent = tr(`${id}.fin.boton`);
+      $('intMonedas').textContent = monedasTotales();
+      $('intTiempo').textContent = formatoTiempo(estado.tiempo);
+      $('intCaidas').textContent = estado.caidas;
+      mostrarPanel('intermedio');
+      $('btnSeguir').focus();
+    } else {
+      fijarModo('final');
+      $('finTitulo').textContent = tr(`${id}.fin.titulo`);
+      $('finTexto').innerHTML = tr(`${id}.fin.texto`);
+      $('finMonedas').textContent = monedasTotales();
+      $('finTiempo').textContent = formatoTiempo(estado.tiempo);
+      $('finCaidas').textContent = estado.caidas;
+      $('finDificultad').textContent = tr(dif.clave);
+      mostrarPanel('final');
+      $('btnOtraVez').focus();
+    }
+  }
+
+  // Menú principal con la portada animada de fondo
+  function mostrarMenu(enfocar) {
+    nuevaPartida(0);   // deja la parte 1 preparada
+    fijarModo('menu');
+    Sonido.musica('portada');
+    pintarMenu();
+    mostrarPanel('menu');
+    if (enfocar) $('btnNueva').focus();
+  }
+
+  function volverAlMenu() { mostrarPanel('menu'); $('btnComoJugar').focus(); }
+
+  function alternarPausa() {
+    if (estado.modo === 'jugando') {
+      fijarModo('pausa');
+      for (const k of ['izq', 'der', 'salto', 'abajo', 'lanzar']) entrada[k] = false;
+      mostrarPanel('pausa');
+      $('btnReanudar').focus();
+    } else if (estado.modo === 'pausa') reanudar();
+  }
+
+  function reanudar() {
+    if (document.activeElement) document.activeElement.blur();
+    mostrarPanel(null);
+    fijarModo('jugando');
+  }
+
+  /* ----- Súper El Perenquén: se gastan las monedas antes del combate final ----- */
+  const PRODUCTOS = { gofio: 15, mojo: 15, platanos: 10 };   // precio en monedas
+  const monedero = () => estado.monedasPrevias - estado.gastado;
+
+  function abrirTienda(destino) {
+    estado.tiendaDestino = destino;
+    aviso.hidden = true;
+    fijarModo('tienda');
+    Sonido.musica('tienda');
+    pintarTienda();
+    mostrarPanel('tienda');
+    const primero = [...paneles.tienda.querySelectorAll('button')].find(b => !b.disabled);
+    if (primero) primero.focus();
+  }
+
+  function comprar(id) {
+    if (estado.inventario[id] || monedero() < PRODUCTOS[id]) return;
+    estado.inventario[id] = true;
+    estado.gastado += PRODUCTOS[id];
+    Sonido.efecto('caja');
+    pintarTienda();
+  }
+
+  function pintarTienda() {
+    $('tiendaMonedas').textContent = monedero();
+    document.querySelectorAll('[data-comprar]').forEach(b => {
+      const id = b.dataset.comprar, comprado = estado.inventario[id];
+      b.textContent = comprado ? tr('tienda.comprado') : tr('tienda.comprar', { p: PRODUCTOS[id] });
+      b.disabled = comprado || monedero() < PRODUCTOS[id];
+    });
+  }
+
+  function salirTienda() {
+    if (estado.modo !== 'tienda') return;
+    if (document.activeElement) document.activeElement.blur();
+    cargarNivel(estado.tiendaDestino);
+    mostrarPanel(null);
+    fijarModo('jugando');
+    mostrarAviso(tr(`${nivel.id}.titulo`));
+  }
+
+  // Intro / Espacio sin ningún botón enfocado
+  function continuar() {
+    if (panelActivo === 'como') volverAlMenu();
+    else if (estado.modo === 'tienda') salirTienda();
+    else if (estado.modo === 'menu' || estado.modo === 'final') empezar(0);
+    else if (estado.modo === 'intermedio') siguienteNivel();
+    else if (estado.modo === 'pausa') reanudar();
+  }
+
+  $('btnNueva').addEventListener('click', () => empezar(0));
+  $('btnContinuar').addEventListener('click', () => empezar(Math.min(progreso, NIVELES.length - 1)));
+  document.querySelectorAll('[data-dif]').forEach(b => b.addEventListener('click', () => elegirDificultad(b.dataset.dif)));
+  document.querySelectorAll('[data-idioma]').forEach(b => b.addEventListener('click', () => elegirIdioma(b.dataset.idioma)));
+  document.querySelectorAll('[data-sonido]').forEach(b => b.addEventListener('click', () => fijarSonido(b.dataset.sonido === 'si')));
+  $('btnComoJugar').addEventListener('click', () => { mostrarPanel('como'); $('btnVolverMenu').focus(); });
+  $('btnVolverMenu').addEventListener('click', volverAlMenu);
+  $('btnReanudar').addEventListener('click', reanudar);
+  $('btnMenuPausa').addEventListener('click', () => mostrarMenu(true));
+  $('btnSeguir').addEventListener('click', siguienteNivel);
+  document.querySelectorAll('[data-comprar]').forEach(b => b.addEventListener('click', () => comprar(b.dataset.comprar)));
+  $('btnSalirTienda').addEventListener('click', salirTienda);
+  $('btnOtraVez').addEventListener('click', () => empezar(0));
+  $('btnMenuFin').addEventListener('click', () => mostrarMenu(true));
+  btnSonido.addEventListener('click', () => { alternarSonido(); btnSonido.blur(); });
+  btnPausa.addEventListener('click', alternarPausa);
+
+  /* =========================================================
+     9. BUCLE PRINCIPAL (paso fijo de 1/60 s)
+     ========================================================= */
+  const PASO = 1 / 60;
+  let anterior = performance.now(), acumulado = 0;
+
+  function bucle(ahora) {
+    acumulado += Math.min(.1, (ahora - anterior) / 1000);
+    anterior = ahora;
+    while (acumulado >= PASO) {
+      estado.reloj += PASO;
+      if (estado.modo === 'jugando') { actualizar(PASO); actualizarHUD(false); }
+      acumulado -= PASO;
+    }
+    dibujar();
+    requestAnimationFrame(bucle);
+  }
+
+  aplicarIdioma();
+  mostrarMenu(false);
+  requestAnimationFrame(bucle);
+})();
+</script>
+</body>
+</html>

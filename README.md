@@ -32,7 +32,7 @@ En los menús, las flechas mueven la selección e Intro confirma.
 
 Todos los jefes y el supermercado son inventados. Al final de cada parte, una pantalla cuenta la historia real del lugar.
 
-Otras funciones: menú principal con portada animada, dificultad Fácil/Difícil, español e inglés, "Continuar" desde la última parte alcanzada, música de 8 bits y efectos generados con Web Audio (sin archivos de audio). La música es original; la de la portada es una isa compuesta para el juego.
+Otras funciones: menú principal con portada animada, dificultad Fácil/Difícil, español e inglés, "Continuar" desde la última parte alcanzada, música de 8 bits y efectos generados con Web Audio (sin archivos de audio). La música es original: el menú tiene una pista con ritmo de dembow y golpes de timple, y el súper una isa, ambas compuestas para el juego. El marcador se dibuja en píxeles, con iconos y números propios.
 
 ## Cómo está organizado el código
 

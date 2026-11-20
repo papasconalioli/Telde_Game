@@ -22,6 +22,9 @@
     --toba: #c98a4f;      /* el guardián de Cuatro Puertas */
     --brasa: #d8452f;     /* el tibicena */
     --perenquen: #2f8f8a; /* el súper */
+    --bandera-blanco: #ffffff;   /* bandera de Canarias */
+    --bandera-azul: #0768a9;
+    --bandera-amarillo: #fcbd04;
     --f-pixel: "Pixelify Sans", "Courier New", monospace;
     --f-texto: "Karla", system-ui, sans-serif;
     color-scheme: dark;
@@ -147,6 +150,11 @@
   .logo { display: grid; gap: 4px; text-align: center; }
   .logo b { font-family: var(--f-pixel); font-weight: 700; font-size: clamp(22px, 4.6vw, 38px); line-height: 1; }
   .logo b em { font-style: normal; color: var(--almagre); }
+  .tricolor { display: flex; justify-self: center; width: 54px; height: 4px; }
+  .tricolor i { flex: 1; }
+  .tricolor i:nth-child(1) { background: var(--bandera-blanco); }
+  .tricolor i:nth-child(2) { background: var(--bandera-azul); }
+  .tricolor i:nth-child(3) { background: var(--bandera-amarillo); }
   .logo span { font-family: var(--f-pixel); font-size: clamp(10px, 1.6vw, 13px); color: var(--gris); letter-spacing: .08em; text-transform: uppercase; }
   .menu > button { justify-self: stretch; text-align: center; }
   .ajuste { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; font-family: var(--f-pixel); font-size: clamp(12px, 1.9vw, 15px); color: var(--gris); }
@@ -215,6 +223,7 @@
       <div class="menu">
         <div class="logo">
           <b>Saltos por <em>Telde</em></b>
+          <div class="tricolor" aria-hidden="true"><i></i><i></i><i></i></div>
           <span data-t="lema">Un viaje por Telde · Gran Canaria</span>
         </div>
         <button id="btnNueva" data-t="nueva">Nueva partida</button>
@@ -804,7 +813,7 @@
   })();
 
   const canvas = document.getElementById('lienzo');
-  const g = canvas.getContext('2d');
+  let g = canvas.getContext('2d');   // conContorno() la cambia un momento para dibujar sprites aparte
   g.imageSmoothingEnabled = false;
 
   /* =========================================================
@@ -868,11 +877,13 @@
       meta: { x0: BASILICA_X + 78, x1: BASILICA_X + 99 },  // puerta de la basílica
       aguaY: null,                            // sin mar: se cae al vacío
       colorPolvo: '#d6c6a8',
-      casas: [
-        { c0: 24, c1: 37, techo: 2, muro: '#efe6d4', remate: '#c9bda6' },
-        { c0: 53, c1: 67, techo: 1, muro: '#e8c48a', remate: '#b99660' }
+      casas: [   // ventanas: posición de cada ventana en la fachada; buganvilla: dónde cae la enredadera
+        { c0: 24, c1: 37, techo: 2, muro: '#efe6d4', remate: '#c9bda6', ventanas: [44, 100, 150, 196], buganvilla: 200 },
+        { c0: 53, c1: 67, techo: 1, muro: '#e8c48a', remate: '#b99660', ventanas: [88, 150, 214], buganvilla: 6 }
       ],
-      laureles: [9, 16, 77, 87, 106, 128].map(c => c * T),
+      laureles: [9, 16, 77, 106, 128].map(c => c * T),
+      dragos: [86, 103].map(c => c * T),
+      ambiente: 'petalos',                    // pétalos de buganvilla en el aire
       dibujarFondo: dibujarFondoPlaza,
       dibujarDecoracion: dibujarDecoracionPlaza,
       dibujarSolido: dibujarSolidoPlaza,
@@ -916,6 +927,7 @@
       colorPolvo: '#6e6562',
       palmeras: [6, 14, 28, 48, 62, 79, 88, 104, 131].map(c => c * T),
       barcas: [9, 56, 84].map(c => c * T),
+      casetas: [30, 75].map(c => c * T),       // casetas de pescadores
       dibujarFondo: dibujarFondoGarita,
       dibujarDecoracion: dibujarDecoracionGarita,
       dibujarSolido: dibujarSolidoGarita,
@@ -963,6 +975,8 @@
       colorPolvo: '#d9a774',
       cardones: [8, 22, 47, 64, 78, 92, 105, 120].map(c => c * T),
       tabaibas: [4, 13, 31, 52, 69, 86, 97, 110, 116].map(c => c * T),
+      tuneras: [11, 43, 70, 89].map(c => c * T),
+      ambiente: 'calima',                     // polvo en suspensión de la calima
       dibujarFondo: dibujarFondoCuevas,
       dibujarDecoracion: dibujarDecoracionCuevas,
       dibujarSolido: dibujarSolidoCuevas,
@@ -1012,6 +1026,8 @@
       colorPolvo: '#a89a8a',
       palmeras: [5, 24, 42, 66, 88, 104].map(c => c * T),
       plataneras: [10, 13, 21, 28, 33, 52, 58, 68, 76, 92, 96].map(c => c * T),
+      dragos: [8, 46, 79].map(c => c * T),
+      ambiente: 'calima',
       dibujarFondo: dibujarFondoBarranco,
       dibujarDecoracion: dibujarDecoracionBarranco,
       dibujarSolido: dibujarSolidoBarranco,
@@ -1756,6 +1772,10 @@
       ctx.fillStyle = muros[Math.floor(rnd() * muros.length)];
       ctx.fillRect(x, arriba, w, h);
       ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(x + w - 2, arriba, 2, h);
+      ctx.fillStyle = '#b4ad9f'; ctx.fillRect(x, arriba, 2, h); ctx.fillRect(x + w - 4, arriba, 2, h);   // esquinas de cantería
+      if (rnd() < .35) {   // buganvilla asomando por la azotea
+        for (let i = 0; i < 10; i++) { ctx.fillStyle = i % 3 ? '#c42a72' : '#e85a9a'; ctx.fillRect(x + 3 + Math.floor(rnd() * 12), arriba + Math.floor(rnd() * 14), 2, 2); }
+      }
       if (rnd() < .5) { // tejado de teja
         ctx.fillStyle = '#a8503a';
         for (let i = 0; i < 6; i++) ctx.fillRect(x + (5 - i) * 2 - 1, arriba - 6 + i, w + 2 - (5 - i) * 4, 1);
@@ -1861,6 +1881,73 @@
     return c;
   })();
 
+  // Degradado "de píxel": franjas de color con un tramado 2×2 en cada cambio, en vez de un degradado suave.
+  // sol (opcional): [x, y, radio, color, color del halo]. Se dibuja una vez, al cargar.
+  function crearDegradado(colores, y0, y1, sol) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const BAYER = [[0, 2], [3, 1]];
+    const franja = (y1 - y0) / colores.length;
+    for (let y = y0; y < y1; y++) {
+      const pos = (y - y0) / franja, i = Math.min(colores.length - 1, Math.floor(pos));
+      const sig = Math.min(colores.length - 1, i + 1);
+      const t = pos - i, trama = t < .7 ? 0 : t < .86 ? 1 : 2;   // al final de cada franja: 1 y luego 2 píxeles de cada 4 con el color siguiente
+      ctx.fillStyle = colores[i]; ctx.fillRect(0, y, W, 1);
+      if (trama > 0 && sig !== i) {
+        ctx.fillStyle = colores[sig];
+        for (let x = 0; x < W; x++) if (BAYER[y % 2][x % 2] < trama) ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    if (sol) {
+      const [sx, sy, r, color, halo] = sol;
+      ctx.fillStyle = halo;   // halo tramado alrededor del sol
+      for (let dy = -r - 3; dy <= r + 3; dy++) for (let dx = -r - 3; dx <= r + 3; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > r && d <= r + 3 && (dx + dy) % 2 === 0) ctx.fillRect(sx + dx, sy + dy, 1, 1);
+      }
+      circuloPx(ctx, sx, sy, r, color);
+    }
+    return c;
+  }
+
+  const CIELOS = {
+    plaza: crearDegradado(['#4f9fd8', '#62acdf', '#78bae4', '#90c7e9', '#a8d4ee', '#c2e1f2', '#d6ebf4'], 0, H, [262, 30, 11, '#fff3c4', '#fffbe6']),
+    garita: crearDegradado(['#4a9fd6', '#62acdb', '#80bbdc', '#a3cbd9', '#c8d8d0', '#e6dfc6', '#f3e2c4'], 0, HORIZONTE, [70, 46, 13, '#fff0c0', '#fff8e0']),
+    mar: crearDegradado(['#4a98c0', '#3d8fb8', '#3382ad', '#2a76a2', '#236b96', '#1d5f86'], HORIZONTE, H),
+    cuevas: crearDegradado(['#64a8da', '#7cb6df', '#98c4e0', '#b6d0dc', '#d2d6cc', '#e6d8b8', '#f0dcb4'], 0, 96, [240, 28, 10, '#fff3c4', '#fffbe6']),
+    barranco: crearDegradado(['#4a5b96', '#5d68a4', '#7a72a8', '#9e7ca2', '#c4848e', '#e0967e', '#f2b27a'], 0, 116, [250, 70, 14, '#ffd27a', '#ffe6a8'])
+  };
+
+  // "Panza de burro": la capa de nubes bajas típica del norte y el este de Gran Canaria
+  const capaPanza = (() => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = H;
+    const ctx = c.getContext('2d');
+    const rnd = aleatorio(52), bolas = [];
+    for (let i = 0; i < 90; i++) bolas.push([Math.floor(rnd() * 640), 8 + Math.floor(rnd() * 10), 4 + Math.floor(rnd() * 6)]);
+    const repetir = (x, y, r, color) => { for (const d of [-640, 0, 640]) circuloPx(ctx, x + d, y, r, color); };
+    ctx.fillStyle = '#c3ced6'; ctx.fillRect(0, 0, 640, 12);
+    for (const [x, y, r] of bolas) repetir(x, y + 2, r, '#b8c4cc');   // sombra de la base
+    ctx.fillStyle = '#e4eaee'; ctx.fillRect(0, 0, 640, 10);
+    for (const [x, y, r] of bolas) repetir(x, y, r, '#e4eaee');
+    for (const [x, y, r] of bolas) if (r > 6) repetir(x - 1, y - 2, r - 3, '#f6f8f9');   // brillos
+    return c;
+  })();
+
+  // Nubes sueltas con volumen: blancas por arriba y con la base en sombra
+  function crearNube(ancho, alto, semilla) {
+    const c = document.createElement('canvas'); c.width = ancho; c.height = alto;
+    const ctx = c.getContext('2d');
+    const rnd = aleatorio(semilla), bolas = [];
+    for (let i = 0; i < 6; i++) {
+      const r = 3 + Math.floor(rnd() * (alto / 2 - 2));
+      bolas.push([r + Math.floor(rnd() * (ancho - 2 * r)), alto - r - 2, r]);
+    }
+    for (const [x, y, r] of bolas) circuloPx(ctx, x, y + 1, r, '#cfdbe4');
+    for (const [x, y, r] of bolas) circuloPx(ctx, x, y - 1, r, '#ffffff');
+    return c;
+  }
+  const NUBE_GRANDE = crearNube(44, 16, 3), NUBE_PEQUENA = crearNube(28, 11, 8);
+
   const nubes = [[20, 18, 34], [140, 30, 24], [230, 12, 40], [400, 26, 30], [520, 16, 22]];
 
   /* =========================================================
@@ -1872,10 +1959,74 @@
   }
 
   function dibujarNubes() {
-    g.fillStyle = '#ffffff';
     for (const [nx, ny, nw] of nubes) {
       const x = Math.round(((nx - estado.camX * .05 - estado.reloj * 3) % 700 + 700) % 700 - 60);
-      g.fillRect(x, ny, nw, 5); g.fillRect(x + 5, ny - 3, nw - 12, 3); g.fillRect(x + 3, ny + 5, nw - 6, 2);
+      g.drawImage(nw > 30 ? NUBE_GRANDE : NUBE_PEQUENA, x, ny - 8);
+    }
+  }
+
+  const mod = (a, n) => ((a % n) + n) % n;
+
+  // Contorno oscuro de 1 px alrededor de un sprite, como en los juegos de 16 bits.
+  // (x, y) es la esquina de una caja de 64×140 píxeles de pantalla que contiene al sprite.
+  const CAJA_W = 64, CAJA_H = 140;
+  const lienzoSprite = document.createElement('canvas'), lienzoSilueta = document.createElement('canvas');
+  lienzoSprite.width = lienzoSilueta.width = CAJA_W; lienzoSprite.height = lienzoSilueta.height = CAJA_H;
+  const ctxSprite = lienzoSprite.getContext('2d'), ctxSilueta = lienzoSilueta.getContext('2d');
+  function conContorno(x, y, dibujo, color = '#1a1418') {
+    ctxSprite.setTransform(1, 0, 0, 1, 0, 0); ctxSprite.clearRect(0, 0, CAJA_W, CAJA_H);
+    ctxSprite.setTransform(1, 0, 0, 1, -x, -y);
+    const pantalla = g; g = ctxSprite; dibujo(); g = pantalla;   // el sprite se dibuja aparte
+    ctxSprite.setTransform(1, 0, 0, 1, 0, 0);
+    ctxSilueta.globalCompositeOperation = 'source-over'; ctxSilueta.clearRect(0, 0, CAJA_W, CAJA_H);
+    ctxSilueta.drawImage(lienzoSprite, 0, 0);
+    ctxSilueta.globalCompositeOperation = 'source-in'; ctxSilueta.fillStyle = color; ctxSilueta.fillRect(0, 0, CAJA_W, CAJA_H);
+    ctxSilueta.globalCompositeOperation = 'source-over';
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) g.drawImage(lienzoSilueta, x + dx, y + dy);
+    g.drawImage(lienzoSprite, x, y);
+  }
+
+  // Línea de píxeles de cierto grosor (ramas, hojas)
+  function linea(x0, y0, x1, y1, grosor, color) {
+    g.fillStyle = color;
+    const pasos = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0;
+    for (let i = 0; i <= pasos; i++) {
+      const t = pasos ? i / pasos : 0;
+      g.fillRect(Math.round(x0 + (x1 - x0) * t - grosor / 2), Math.round(y0 + (y1 - y0) * t - grosor / 2), grosor, grosor);
+    }
+  }
+
+  // Drago: el árbol emblemático de Canarias, con el tronco abierto en ramas y rosetas de hojas
+  function dibujarDrago(x) {
+    const base = SUELO_Y, puntas = [[-18, -50], [-8, -60], [5, -62], [16, -52]];
+    for (const [dx, dy] of puntas) { linea(x, base - 32, x + dx, base + dy, 4, '#7f7062'); linea(x - 1, base - 32, x + dx - 1, base + dy, 1, '#a89a88'); }
+    g.fillStyle = '#8f8070'; g.fillRect(x - 5, base - 36, 10, 36);
+    g.fillStyle = '#a89a88'; g.fillRect(x - 5, base - 36, 3, 36);
+    g.fillStyle = '#6f6254'; g.fillRect(x + 3, base - 36, 2, 36);
+    g.fillStyle = '#8f8070'; g.fillRect(x - 8, base - 3, 16, 3);
+    for (const [dx, dy] of puntas) {
+      const cx = x + dx, cy = base + dy;
+      for (let k = 0; k < 6; k++) { const a = Math.PI * k / 5; linea(cx, cy, cx + Math.cos(a) * 8, cy + Math.sin(a) * 4, 1, '#2f5a32'); }
+      for (let k = 0; k < 10; k++) { const a = Math.PI + Math.PI * k / 9; linea(cx, cy, cx + Math.cos(a) * 9, cy + Math.sin(a) * 7 - 2, 1, k % 2 ? '#3f6b3a' : '#5a8a4a'); }
+    }
+  }
+
+  // Partículas de ambiente: pétalos de buganvilla en el casco y polvo de calima en el interior
+  function dibujarAmbiente() {
+    const t = estado.reloj, tipo = nivel.ambiente;
+    if (!tipo) return;
+    for (let i = 0; i < (tipo === 'petalos' ? 9 : 22); i++) {
+      const sem = ruido(i, 7, 3);
+      if (tipo === 'petalos') {
+        const x = Math.round(mod((sem % 400) + t * (8 + i % 5) - estado.camX * .9, 360) - 20 + Math.sin(t * 2 + i) * 3);
+        const y = Math.round(mod(((sem >> 8) % 176) + t * (10 + i % 4), 196) - 10);
+        g.fillStyle = '#c42a72'; g.fillRect(x, y, 2, 2);                // pétalo que gira al caer
+        g.fillStyle = '#f06aa8'; g.fillRect(x + (Math.floor(t * 4 + i) % 2), y, 1, 1);
+      } else {
+        const x = Math.round(mod((sem % 400) - t * (4 + i % 3) - estado.camX * .5, 340) - 10);
+        const y = Math.round(20 + (sem >> 8) % 130 + Math.sin(t + i) * 4);
+        g.fillStyle = 'rgba(255,220,170,.6)'; g.fillRect(x, y, 1, 1);
+      }
     }
   }
 
@@ -1923,10 +2074,7 @@
 
   /* ----- 7a. Parte 1: casco de San Juan ----- */
   function dibujarFondoPlaza() {
-    const grad = g.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#6fb6e3'); grad.addColorStop(.7, '#cfe9f3');
-    g.fillStyle = grad; g.fillRect(0, 0, W, H);
-    circuloPx(g, 262, 30, 11, '#fff3c4');
+    g.drawImage(CIELOS.plaza, 0, 0);
     dibujarNubes();
     capaRepetida(capaMontes, .1);
     capaRepetida(capaCasas, .35);
@@ -1937,17 +2085,54 @@
     dibujarVentanasBalcon(camX);
     if (BASILICA_X - camX < W && BASILICA_X + 180 - camX > 0) dibujarBasilica(camX);
     for (const lx of nivel.laureles) if (lx - camX > -50 && lx - camX < W + 50) dibujarLaurel(Math.round(lx - camX));
+    for (const dx of nivel.dragos) if (dx - camX > -40 && dx - camX < W + 40) dibujarDrago(Math.round(dx - camX));
   }
 
+  // Casa canaria del casco: muro encalado, esquinas y marcos de cantería, puerta de tea y buganvilla
   function dibujarCasa(casa, camX) {
-    const x = casa.c0 * T - camX, ancho = (casa.c1 - casa.c0 + 1) * T, y = casa.techo * T;
-    g.fillStyle = casa.muro; g.fillRect(x, y, ancho, SUELO_Y - y);
-    g.fillStyle = casa.remate; g.fillRect(x - 2, y - 4, ancho + 4, 4); // cornisa
-    g.fillRect(x, SUELO_Y - 6, ancho, 6);                            // zócalo
-    g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(x + ancho - 3, y, 3, SUELO_Y - y);
-    // Puerta de madera
-    g.fillStyle = '#5a2f1c'; g.fillRect(x + 14, SUELO_Y - 26, 14, 26);
-    g.fillStyle = '#7a4a28'; g.fillRect(x + 15, SUELO_Y - 25, 5, 24); g.fillRect(x + 22, SUELO_Y - 25, 5, 24);
+    const x = Math.round(casa.c0 * T - camX), ancho = (casa.c1 - casa.c0 + 1) * T, y = casa.techo * T, alto = SUELO_Y - y;
+    g.fillStyle = casa.muro; g.fillRect(x, y, ancho, alto);
+    g.fillStyle = 'rgba(0,0,0,.05)';                                  // textura de la cal
+    for (let i = 0; i < ancho * alto / 60; i++) { const r = ruido(casa.c0, i, 5); g.fillRect(x + r % ancho, y + (r >> 8) % alto, 1, 1); }
+    for (let yy = y, n = 0; yy < SUELO_Y - 6; yy += 5, n++) {         // esquinas de cantería
+      const largo = n % 2 ? 4 : 7;
+      g.fillStyle = '#a49c8e'; g.fillRect(x, yy, largo, 4); g.fillRect(x + ancho - largo, yy, largo, 4);
+      g.fillStyle = '#8a8274'; g.fillRect(x, yy + 4, largo, 1); g.fillRect(x + ancho - largo, yy + 4, largo, 1);
+    }
+    g.fillStyle = casa.remate; g.fillRect(x - 2, y - 4, ancho + 4, 4);   // cornisa
+    g.fillStyle = '#8a8274'; g.fillRect(x - 2, y, ancho + 4, 1);
+    g.fillStyle = '#a49c8e'; g.fillRect(x, SUELO_Y - 6, ancho, 6);       // zócalo de cantería
+    g.fillStyle = '#8a8274'; for (let xx = x + 6; xx < x + ancho; xx += 12) g.fillRect(xx, SUELO_Y - 6, 1, 6);
+    g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(x + ancho - 3, y, 3, alto);
+    for (const vx of casa.ventanas) dibujarVentanaCanaria(x + vx, SUELO_Y - 40);
+    // Puerta de tea con marco de cantería, cuarterones y aldaba
+    g.fillStyle = '#a49c8e'; g.fillRect(x + 12, SUELO_Y - 30, 18, 30);
+    g.fillStyle = '#5a2f1c'; g.fillRect(x + 14, SUELO_Y - 27, 14, 27);
+    g.fillStyle = '#7a4a28'; g.fillRect(x + 15, SUELO_Y - 26, 5, 25); g.fillRect(x + 22, SUELO_Y - 26, 5, 25);
+    g.fillStyle = '#4a2414'; g.fillRect(x + 16, SUELO_Y - 22, 3, 8); g.fillRect(x + 23, SUELO_Y - 22, 3, 8);
+    g.fillStyle = '#c9a54a'; g.fillRect(x + 20, SUELO_Y - 14, 1, 2);
+    dibujarBuganvilla(x + casa.buganvilla, y - 2, alto * .6, casa.c0);
+  }
+
+  // Ventana de guillotina con marco de cantería y postigos verdes abiertos
+  function dibujarVentanaCanaria(x, y) {
+    g.fillStyle = '#a49c8e'; g.fillRect(x - 2, y - 2, 14, 22);
+    g.fillStyle = '#8a8274'; g.fillRect(x - 2, y + 19, 14, 1);
+    g.fillStyle = '#2a3a40'; g.fillRect(x, y, 10, 18);
+    g.fillStyle = '#4a6a74'; g.fillRect(x + 1, y + 1, 2, 6);
+    g.fillStyle = '#e8e2d4'; g.fillRect(x + 4, y, 2, 18); g.fillRect(x, y + 8, 10, 1);
+    g.fillStyle = '#3f6b4a'; g.fillRect(x - 6, y, 4, 18); g.fillRect(x + 12, y, 4, 18);
+    g.fillStyle = '#2f5a3e'; for (let i = 2; i < 18; i += 3) { g.fillRect(x - 6, y + i, 4, 1); g.fillRect(x + 12, y + i, 4, 1); }
+  }
+
+  // Buganvilla: enredadera de flores fucsia que cae por la fachada
+  function dibujarBuganvilla(x, y, largo, semilla) {
+    for (let i = 0; i < 34; i++) {
+      const r = ruido(semilla, i, 9);
+      const dx = (r % 30) - 6, dy = Math.floor(Math.pow(((r >> 6) % 100) / 100, 1.6) * largo);
+      if (i % 3 === 0) { g.fillStyle = '#3f6b3a'; g.fillRect(x + dx + 1, y + dy + 1, 3, 2); }
+      g.fillStyle = (r >> 3) % 3 ? '#c42a72' : '#e85a9a'; g.fillRect(x + dx, y + dy, 3, 2);
+    }
   }
 
   function dibujarVentanasBalcon(camX) {
@@ -2055,17 +2240,22 @@
 
   /* ----- 7b. Parte 2: playa de La Garita ----- */
   function dibujarFondoGarita() {
-    // Cielo de mañana: en la costa este el sol sale por el mar
-    const cielo = g.createLinearGradient(0, 0, 0, HORIZONTE);
-    cielo.addColorStop(0, '#5fb0e0'); cielo.addColorStop(1, '#f3e2c4');
-    g.fillStyle = cielo; g.fillRect(0, 0, W, HORIZONTE);
-    circuloPx(g, 70, 46, 13, '#fff0c0');
+    // Cielo de mañana: en la costa este el sol sale por el mar, bajo la panza de burro
+    g.drawImage(CIELOS.garita, 0, 0);
+    capaRepetida(capaPanza, .04);
     dibujarNubes();
     capaRepetida(capaCosta, .12);
+    // Pardelas planeando sobre el mar
+    for (let i = 0; i < 2; i++) {
+      const bx = Math.round(mod(estado.reloj * (9 + i * 3) + i * 170 - estado.camX * .1, 400)) - 40;
+      const by = 58 + i * 14 + Math.round(Math.sin(estado.reloj * .8 + i * 2) * 3);
+      g.fillStyle = '#3a3a40';   // alas largas en forma de M aplanada
+      for (const [dx, dy] of [[-6, 1], [-5, 0], [-4, 0], [-3, 0], [-2, 1], [2, 1], [3, 0], [4, 0], [5, 0], [6, 1]]) g.fillRect(bx + dx, by + dy, 1, 1);
+      g.fillRect(bx - 1, by + 1, 3, 1);
+      g.fillStyle = '#e8e8e4'; g.fillRect(bx - 1, by + 2, 3, 1);
+    }
     // Mar abierto
-    const mar = g.createLinearGradient(0, HORIZONTE, 0, H);
-    mar.addColorStop(0, '#3d8fb8'); mar.addColorStop(1, '#1d5f86');
-    g.fillStyle = mar; g.fillRect(0, HORIZONTE, W, H - HORIZONTE);
+    g.drawImage(CIELOS.mar, 0, 0);
     // Reflejo del sol
     g.fillStyle = 'rgba(255,240,200,.55)';
     for (let i = 0; i < 6; i++) {
@@ -2082,10 +2272,24 @@
   }
 
   function dibujarDecoracionGarita(camX) {
+    for (const cx of nivel.casetas) if (cx - camX > -40 && cx - camX < W) dibujarCaseta(Math.round(cx - camX));
     for (const bx of nivel.barcas) if (bx - camX > -50 && bx - camX < W) dibujarBarca(Math.round(bx - camX), '#2f5f86', false);
     if (BUFA_CX - camX > -60 && BUFA_CX - camX < W + 60) dibujarRocaBufadero(camX);
     for (const px of nivel.palmeras) if (px - camX > -40 && px - camX < W + 40) dibujarPalmera(Math.round(px - camX), 64 + (px / T) % 3 * 6, (px / T) % 2 ? 1 : -1);
     if (BARCA_X - camX < W && BARCA_X - camX > -50) dibujarBarca(Math.round(BARCA_X - camX), '#c4552f', true);
+  }
+
+  // Caseta de pescadores: blanca, de azotea, con puerta azul y una nasa apoyada
+  function dibujarCaseta(x) {
+    const y = SUELO_Y - 18;
+    g.fillStyle = '#efeee8'; g.fillRect(x, y, 26, 18);
+    g.fillStyle = '#d6d4cc'; g.fillRect(x + 23, y, 3, 18);
+    g.fillStyle = '#ffffff'; g.fillRect(x - 1, y - 2, 28, 2);
+    g.fillStyle = '#2f6fb8'; g.fillRect(x + 4, y + 6, 8, 12); g.fillRect(x + 16, y + 6, 5, 5);
+    g.fillStyle = '#245a96'; g.fillRect(x + 4, y + 6, 8, 1); g.fillRect(x + 8, y + 7, 1, 11);
+    g.fillStyle = '#8a8274'; g.fillRect(x, SUELO_Y - 2, 26, 2);
+    g.fillStyle = '#a8865e'; g.fillRect(x + 27, SUELO_Y - 7, 7, 7);
+    g.fillStyle = '#7a5a3a'; for (let i = 0; i < 7; i += 2) g.fillRect(x + 27 + i, SUELO_Y - 7, 1, 7);
   }
 
   // Palmera canaria: tronco grueso con escamas y copa de hojas largas
@@ -2227,13 +2431,12 @@
 
   /* ----- 7c. Parte 3: Montaña de Cuatro Puertas ----- */
   function dibujarFondoCuevas() {
-    const cielo = g.createLinearGradient(0, 0, 0, 80);
-    cielo.addColorStop(0, '#78b9e0'); cielo.addColorStop(1, '#f0dcb4');
-    g.fillStyle = cielo; g.fillRect(0, 0, W, H);
-    circuloPx(g, 240, 28, 10, '#fff3c4');
+    g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, W, H);
+    g.drawImage(CIELOS.cuevas, 0, 0);
     dibujarNubes();
     capaRepetida(capaLlano, .08);
     capaRepetida(capaLomas, .3);
+    g.fillStyle = 'rgba(232,176,110,.14)'; g.fillRect(0, 0, W, H);   // calima: el aire cargado de polvo
   }
 
   function dibujarDecoracionCuevas(camX) {
@@ -2241,6 +2444,22 @@
     if (CUEVA_X - camX < W) dibujarCuevaCuatroPuertas(camX);
     for (const tx of nivel.tabaibas) if (tx - camX > -20 && tx - camX < W + 20) dibujarTabaiba(Math.round(tx - camX));
     for (const cx of nivel.cardones) if (cx - camX > -30 && cx - camX < W + 30) dibujarCardon(Math.round(cx - camX), 30 + (cx / T) % 3 * 6);
+    for (const tx of nivel.tuneras) if (tx - camX > -20 && tx - camX < W + 20) dibujarTunera(Math.round(tx - camX));
+  }
+
+  // Tunera (chumbera) con sus tunos rojos
+  function dibujarTunera(x) {
+    const palas = [[-10, -6, 4, 5], [0, -8, 5, 7], [-6, -16, 4, 6], [6, -17, 4, 6], [1, -24, 4, 5]];
+    for (const [dx, dy, rx, ry] of palas) {
+      for (let yy = -ry; yy <= ry; yy++) {
+        const w = Math.round(rx * Math.sqrt(1 - (yy / ry) ** 2));
+        g.fillStyle = yy > ry / 2 ? '#5a8040' : '#6f9a4a'; g.fillRect(x + dx - w, SUELO_Y + dy + yy, w * 2 + 1, 1);
+      }
+      g.fillStyle = '#8ab85e'; g.fillRect(x + dx - 1, SUELO_Y + dy - ry + 2, 2, 2);
+      g.fillStyle = '#3f5a2c'; g.fillRect(x + dx + 2, SUELO_Y + dy, 1, 1); g.fillRect(x + dx - 2, SUELO_Y + dy + 2, 1, 1);
+    }
+    g.fillStyle = '#c43a4a';
+    for (const [dx, dy] of [[6, -24], [1, -30], [-6, -23], [9, -22]]) g.fillRect(x + dx, SUELO_Y + dy, 2, 2);
   }
 
   // Cardón: euforbia en columnas, típica de las laderas secas de la isla
@@ -2362,13 +2581,12 @@
   /* ----- 7d. Parte 4: Barranco Real de Telde ----- */
   function dibujarFondoBarranco() {
     // Atardecer: la última parte del viaje
-    const cielo = g.createLinearGradient(0, 0, 0, 110);
-    cielo.addColorStop(0, '#5a6fa8'); cielo.addColorStop(1, '#f2b27a');
-    g.fillStyle = cielo; g.fillRect(0, 0, W, H);
-    circuloPx(g, 250, 70, 14, '#ffd27a');
+    g.fillStyle = '#f2b27a'; g.fillRect(0, 0, W, H);
+    g.drawImage(CIELOS.barranco, 0, 0);
     dibujarNubes();
     capaRepetida(capaMontes, .1);
     capaRepetida(capaBarranco, .3);
+    g.fillStyle = 'rgba(240,150,90,.12)'; g.fillRect(0, 0, W, H);    // calima al atardecer
   }
 
   function dibujarDecoracionBarranco(camX) {
@@ -2383,6 +2601,7 @@
     }
     if (CUEVA_X - camX < W) dibujarPobladoTara(camX);
     for (const x of nivel.plataneras) if (x - camX > -30 && x - camX < W + 30) dibujarPlatanera(Math.round(x - camX));
+    for (const x of nivel.dragos) if (x - camX > -40 && x - camX < W + 40) dibujarDrago(Math.round(x - camX));
     for (const x of nivel.palmeras) if (x - camX > -40 && x - camX < W + 40) dibujarPalmera(Math.round(x - camX), 62 + (x / T) % 3 * 6, (x / T) % 2 ? 1 : -1, .5);
   }
 
@@ -2618,7 +2837,7 @@
       g.fillStyle = color;
       g.fillRect(b.mira > 0 ? sx + dx : sx + anchoSprite - dx - w, sy + dy, w, h);
     };
-    cfgJefe().dibujar(px, b.fase, sx, sy);
+    conContorno(sx - 20, sy - 12, () => cfgJefe().dibujar(px, b.fase, sx, sy));
 
     // Estrellitas de aturdimiento
     if (b.fase === 'suelo') {
@@ -2776,25 +2995,37 @@
     const p = jugador;
     if (p.invuln > 0 && Math.floor(p.invuln * 10) % 2) return; // parpadeo tras un golpe
     const sx = Math.round(p.x - estado.camX) - 1, sy = Math.round(p.y) - 2;
+    conContorno(sx - 20, sy - 12, () => spriteJugador(p, sx, sy));
+  }
+
+  // Protagonista: camiseta amarilla, pantalón azul y zapatillas blancas (los colores de la bandera canaria)
+  function spriteJugador(p, sx, sy) {
     // px() dibuja un rectángulo del sprite (12×16) reflejado según hacia dónde mira
     const px = (dx, dy, w, h, color) => {
       g.fillStyle = color;
       g.fillRect(p.mira > 0 ? sx + dx : sx + 12 - dx - w, sy + dy, w, h);
     };
-    const piel = '#e0a77c', pelo = '#2a1d17', camisa = '#2f7fa8', pantalon = '#3a3340', calzado = '#1c1a1e';
+    const piel = '#e2a57a', pielSombra = '#b97a55', pelo = '#2a1d17', peloBrillo = '#5a3a28';
+    const camisa = '#f2c43d', camisaSombra = '#c99a1f', azul = '#2f6fb8', pantalon = '#2f5fa8', pantalonSombra = '#22457a';
+    const zapa = '#f4f1ea', suela = '#9a9288';
     const fase = Math.floor(p.paso / 6) % 2;
 
-    px(3, 0, 6, 2, pelo); px(2, 1, 2, 3, pelo);
-    px(3, 2, 6, 5, piel); px(7, 3, 1, 2, pelo);            // cara y ojo
-    px(2, 7, 8, 5, camisa); px(2, 7, 8, 1, '#4aa0c8');
-    if (!p.enSuelo) { px(0, 6, 2, 3, piel); px(10, 6, 2, 3, piel); }         // brazos arriba al saltar
-    else { px(1, 8 + fase, 1, 3, piel); px(10, 9 - fase, 1, 3, piel); }
-    px(3, 11, 6, 2, pantalon);
-    if (!p.enSuelo) { px(2, 13, 3, 2, pantalon); px(7, 12, 3, 2, pantalon); px(1, 15, 3, 1, calzado); px(8, 14, 3, 1, calzado); }
-    else if (p.paso > 0) {
-      if (fase) { px(2, 13, 2, 2, pantalon); px(7, 13, 2, 2, pantalon); px(1, 15, 3, 1, calzado); px(7, 15, 3, 1, calzado); }
-      else { px(4, 13, 2, 2, pantalon); px(6, 13, 2, 2, pantalon); px(4, 15, 4, 1, calzado); }
-    } else { px(3, 13, 2, 2, pantalon); px(7, 13, 2, 2, pantalon); px(3, 15, 3, 1, calzado); px(7, 15, 3, 1, calzado); }
+    px(3, 0, 6, 1, pelo); px(2, 1, 8, 2, pelo); px(2, 3, 2, 3, pelo); px(4, 1, 3, 1, peloBrillo);   // pelo rizado
+    px(4, 3, 5, 4, piel); px(9, 4, 1, 1, piel); px(4, 6, 5, 1, pielSombra); px(3, 4, 1, 2, pielSombra);   // cara y oreja
+    px(7, 4, 1, 1, '#1c1a1e');                                                                     // ojo
+    px(2, 7, 8, 5, camisa); px(2, 10, 8, 2, camisaSombra); px(4, 7, 4, 1, azul);                    // camiseta con cuello azul
+    if (!p.enSuelo) { px(0, 5, 2, 4, piel); px(10, 5, 2, 4, piel); px(0, 8, 2, 1, camisa); px(10, 8, 2, 1, camisa); }   // brazos arriba
+    else { px(1, 8 + fase, 1, 3, piel); px(10, 9 - fase, 1, 3, piel); px(1, 7 + fase, 1, 1, camisa); px(10, 8 - fase, 1, 1, camisa); }
+    px(3, 11, 6, 2, pantalon); px(3, 12, 6, 1, pantalonSombra);                                     // pantalón corto
+    if (!p.enSuelo) {
+      px(2, 13, 3, 2, piel); px(7, 12, 3, 2, piel); px(1, 15, 3, 1, zapa); px(8, 14, 3, 1, zapa);
+    } else if (p.paso > 0) {
+      if (fase) { px(2, 13, 2, 2, piel); px(7, 13, 2, 2, piel); px(1, 15, 3, 1, zapa); px(7, 15, 3, 1, zapa); }
+      else { px(4, 13, 2, 2, piel); px(6, 13, 2, 2, piel); px(4, 15, 4, 1, zapa); }
+    } else {
+      px(3, 13, 2, 2, piel); px(7, 13, 2, 2, piel); px(3, 15, 3, 1, zapa); px(7, 15, 3, 1, zapa);
+      px(3, 15, 1, 1, suela); px(9, 15, 1, 1, suela);
+    }
   }
 
   /* ----- 7g. Portada del menú principal: la playa de La Garita en movimiento ----- */
@@ -2884,6 +3115,7 @@
     dibujarJugador();
     dibujarProyectiles(camX);
     dibujarPlatanos(camX);
+    dibujarAmbiente();
   }
 
   /* =========================================================
